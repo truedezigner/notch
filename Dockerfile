@@ -20,4 +20,7 @@ COPY --from=web /src/dist /app/api/static
 
 ENV DB_PATH=/data/app.db
 EXPOSE 8080
-CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+# Run uvicorn from inside /app/api so imports work whether or not `api/` is treated as a package.
+WORKDIR /app/api
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
