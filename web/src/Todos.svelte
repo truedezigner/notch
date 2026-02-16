@@ -15,7 +15,6 @@
 
   let newListName = '';
   let newTitle = '';
-  let newNotes = '';
   let includeDone = false;
   export let initialExpandedId: string | null = null;
   let expandedId: string | null = null;
@@ -26,22 +25,7 @@
     return d.toLocaleString();
   }
 
-  function renderNotes(s?: string | null): { text: string; url?: string }[] {
-    const t = (s || '').trim();
-    if (!t) return [];
-    const re = /(https?:\/\/\S+)/g;
-    const parts: { text: string; url?: string }[] = [];
-    let last = 0;
-    for (const m of t.matchAll(re)) {
-      const idx = m.index ?? 0;
-      if (idx > last) parts.push({ text: t.slice(last, idx) });
-      const url = m[0];
-      parts.push({ text: '(link)', url });
-      last = idx + url.length;
-    }
-    if (last < t.length) parts.push({ text: t.slice(last) });
-    return parts;
-  }
+  // Todos intentionally have no description/notes field (Reminders-style title-only).
 
   function userLabel(id?: string | null) {
     if (!id) return '';
@@ -101,10 +85,9 @@
     const title = newTitle.trim();
     if (!title) return;
     try {
-      const t = await createTodo(title, newNotes.trim() || undefined, activeListId);
+      const t = await createTodo(title, activeListId);
       todos = [t, ...todos];
       newTitle = '';
-      newNotes = '';
     } catch (e: any) {
       err = e?.message || String(e);
     }
@@ -153,7 +136,6 @@
 
 <div class="add">
   <input bind:value={newTitle} placeholder="New reminder…" on:keydown={(e) => e.key === 'Enter' && add()} />
-  <textarea bind:value={newNotes} placeholder="Optional notes (URLs become (link))"></textarea>
   <button on:click={add} disabled={!newTitle.trim()}>Add</button>
 </div>
 
@@ -183,17 +165,7 @@
           {/if}
         </div>
 
-        {#if t.notes}
-          <div class="notes">
-            {#each renderNotes(t.notes) as p}
-              {#if p.url}
-                <a href={p.url} target="_blank" rel="noreferrer">{p.text}</a>
-              {:else}
-                <span>{p.text}</span>
-              {/if}
-            {/each}
-          </div>
-        {/if}
+        <!-- Todos are title-only (no description field). -->
 
         {#if t.due_at}
           <div class="meta">Due: {fmtTime(t.due_at)}</div>
@@ -281,8 +253,7 @@
   .addList { display:flex; gap:8px; align-items:center; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
 .addList input { flex: 1; }
 .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
-  input, textarea { font: inherit; padding: 10px; border-radius: 10px; }
-  textarea { min-height: 70px; resize: vertical; }
+  input { font: inherit; padding: 10px; border-radius: 10px; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
   button:disabled { opacity: .5; }
   .err { margin-top: 10px; color: var(--danger); font-size: 13px; }
@@ -302,7 +273,6 @@
   .label { font-size: 12px; color: var(--muted); }
   select { padding: 10px; border-radius: 10px; min-width: 180px; }
   .done { text-decoration: line-through; color: var(--muted); }
-  .notes { margin-left: 28px; margin-top: 6px; color: var(--text); font-size: 14px; opacity: 0.9; }
-  .notes a { color: inherit; text-decoration: underline; }
+  /* (todo description removed) */
   .meta { margin-left: 28px; margin-top: 6px; color: var(--muted); font-size: 12px; }
 </style>

@@ -16,6 +16,7 @@ from .db import tx
 from .settings import settings
 from . import todos as todos_api
 from . import lists as lists_api
+from . import notes as notes_api
 from .scheduler import run_once
 
 
@@ -111,6 +112,49 @@ async def create_list(payload: dict, p: Principal = Depends(require_principal)):
 async def create_todo(payload: dict, p: Principal = Depends(require_principal)):
     todo = todos_api.create_todo(p=p, payload=payload)
     return {"ok": True, "todo": todo}
+
+
+# --- Note groups / Notes ---
+
+@app.get("/api/note-groups")
+async def list_note_groups(p: Principal = Depends(require_principal)):
+    groups = notes_api.list_groups(p=p)
+    return {"ok": True, "groups": groups}
+
+
+@app.post("/api/note-groups")
+async def create_note_group(payload: dict, p: Principal = Depends(require_principal)):
+    group = notes_api.create_group(p=p, payload=payload)
+    return {"ok": True, "group": group}
+
+
+@app.get("/api/notes")
+async def list_notes(
+    query: str | None = None,
+    group_id: str | None = None,
+    limit: int = 200,
+    p: Principal = Depends(require_principal),
+):
+    notes = notes_api.list_notes(p=p, query=query, group_id=group_id, limit=limit)
+    return {"ok": True, "notes": notes}
+
+
+@app.post("/api/notes")
+async def create_note(payload: dict, p: Principal = Depends(require_principal)):
+    note = notes_api.create_note(p=p, payload=payload)
+    return {"ok": True, "note": note}
+
+
+@app.get("/api/notes/{note_id}")
+async def get_note(note_id: str, p: Principal = Depends(require_principal)):
+    note = notes_api.get_note(p=p, note_id=note_id)
+    return {"ok": True, "note": note}
+
+
+@app.patch("/api/notes/{note_id}")
+async def patch_note(note_id: str, payload: dict, p: Principal = Depends(require_principal)):
+    note = notes_api.patch_note(p=p, note_id=note_id, payload=payload)
+    return {"ok": True, "note": note}
 
 
 @app.get("/api/todos")

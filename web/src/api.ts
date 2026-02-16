@@ -77,8 +77,8 @@ export async function listTodos(includeDone = false, listId?: string | null): Pr
   return j.todos;
 }
 
-export async function createTodo(title: string, notes?: string, listId?: string | null): Promise<Todo> {
-  const body: any = { title, notes };
+export async function createTodo(title: string, listId?: string | null): Promise<Todo> {
+  const body: any = { title };
   if (listId) body.list_id = listId;
   const j = await req('/api/todos', { method: 'POST', body: JSON.stringify(body) });
   return j.todo;

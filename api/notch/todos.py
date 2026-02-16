@@ -40,7 +40,8 @@ def create_todo(*, p: Principal, payload: dict) -> dict[str, Any]:
     if not title:
         raise HTTPException(status_code=400, detail="Missing title")
 
-    notes = (payload.get("notes") or "").strip() or None
+    # Todos are title-only (no description field)
+    notes = None
     due_at = payload.get("due_at")
     remind_at = payload.get("remind_at")
     list_id = payload.get("list_id")
@@ -149,7 +150,8 @@ def patch_todo(*, p: Principal, todo_id: str, payload: dict) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="if_version must be int")
 
     fields = {}
-    for k in ("title", "notes"):
+    # Title only. Ignore notes/description edits.
+    for k in ("title",):
         if k in payload:
             v = payload.get(k)
             if v is None:
