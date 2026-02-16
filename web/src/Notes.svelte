@@ -10,7 +10,8 @@
 
   let users: User[] = [];
   let groups: NoteGroup[] = [];
-  let activeGroupId: string | null = null;
+  // '' means "All groups"
+  let activeGroupId: string = '';
   let notes: Note[] = [];
 
   let groupSharedWith: string[] = [];
@@ -44,9 +45,9 @@
     try {
       users = await listUsers();
       groups = await listNoteGroups();
-      if (!activeGroupId && groups.length) activeGroupId = groups[0].id;
+      // Default to All groups so individually-shared notes show up even if their group isn't shared.
       groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
-      notes = await listNotes(activeGroupId, q);
+      notes = await listNotes(activeGroupId || null, q);
       // If the currently-selected note no longer exists in this view, clear the editor.
       if (selectedId && !notes.some(n => n.id === selectedId)) {
         selectedId = null;
@@ -64,7 +65,7 @@
           const n = await getNote(initialSelectedId);
           if (n.group_id && n.group_id !== activeGroupId) {
             activeGroupId = n.group_id;
-            notes = await listNotes(activeGroupId, q);
+            notes = await listNotes(activeGroupId || null, q);
           }
           found = notes.find(x => x.id === initialSelectedId) || n;
         }
@@ -139,7 +140,7 @@
     const t = newTitle.trim();
     if (!t) return;
     try {
-      const n = await createNote(t, activeGroupId);
+      const n = await createNote(t, activeGroupId || null);
       notes = [n, ...notes];
       newTitle = '';
       pick(n);
@@ -191,6 +192,7 @@
     <div class="row">
       <h3>Notes</h3>
       <select bind:value={activeGroupId} on:change={onGroupChange}>
+        <option value="">All</option>
         {#each groups as g}
           <option value={g.id}>{g.name}</option>
         {/each}
@@ -294,7 +296,8 @@
             try {
               const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
               version = updated.version;
-              activeGroupId = updated.group_id || activeGroupId;
+              // stick to the note's new group
+              activeGroupId = updated.group_id || '';
               await refresh();
             } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
           }}>

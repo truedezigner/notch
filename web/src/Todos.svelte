@@ -8,7 +8,8 @@
   let todos: Todo[] = [];
   let users: User[] = [];
   let lists: TodoList[] = [];
-  let activeListId: string | null = null;
+  // '' means "All lists"
+  let activeListId: string = '';
 
   let loading = true;
   let err: string | null = null;
@@ -54,8 +55,8 @@
     try {
       users = await listUsers();
       lists = await listLists();
-      if (!activeListId && lists.length) activeListId = lists[0].id;
-      todos = await listTodos(includeDone, activeListId);
+      // Default to All lists so shared todos show up even if their list isn't shared.
+      todos = await listTodos(includeDone, activeListId || null);
       if (initialExpandedId) {
         const found = todos.find(t => t.id === initialExpandedId);
         if (found) expandedId = initialExpandedId;
@@ -85,7 +86,7 @@
     const title = newTitle.trim();
     if (!title) return;
     try {
-      const t = await createTodo(title, activeListId);
+      const t = await createTodo(title, activeListId || null);
       todos = [t, ...todos];
       newTitle = '';
     } catch (e: any) {
@@ -118,6 +119,7 @@
   <div class="topLeft">
     <h3>Todos</h3>
     <select class="listSel" bind:value={activeListId} on:change={refresh}>
+      <option value="">All</option>
       {#each lists as l}
         <option value={l.id}>{l.name}</option>
       {/each}
