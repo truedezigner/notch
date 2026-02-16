@@ -1,2 +1,45 @@
-body { margin: 0; }
-button, input, select, textarea { font: inherit; }
+/* Notch theme (default dark). Keep it simple, iOS-friendly. */
+
+:root {
+  --bg: #0b0f14;
+  --panel: #111826;
+  --text: #e6edf3;
+  --muted: #9aa4af;
+  --border: #243041;
+  --btn: #e6edf3;
+  --btnText: #0b0f14;
+  --danger: #ff6b6b;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --text: #111111;
+  --muted: #666666;
+  --border: #dddddd;
+  --btn: #111111;
+  --btnText: #ffffff;
+  color-scheme: light;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a { color: inherit; }
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+input, textarea, select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+::placeholder { color: var(--muted); }

@@ -196,29 +196,29 @@
 <style>
   .top { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
   .topRight { display:flex; align-items:center; gap:10px; }
-  .toggle { font-size: 12px; color:#555; display:flex; gap:6px; align-items:center; }
-  .logout { background: #fff; border: 1px solid #bbb; border-radius: 10px; padding: 8px 10px; font-weight: 700; }
-  .logout:hover { background: #f7f7f7; }
-  .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid #eee; border-radius: 12px; }
-  input, textarea { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
+  .toggle { font-size: 12px; color: var(--muted); display:flex; gap:6px; align-items:center; }
+  .logout { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-weight: 800; color: var(--text); }
+  .logout:hover { filter: brightness(1.08); }
+  .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+  input, textarea { font: inherit; padding: 10px; border-radius: 10px; }
   textarea { min-height: 70px; resize: vertical; }
-  button { padding: 10px 12px; border-radius: 10px; border: 1px solid #111; background: #111; color: #fff; }
+  button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
   button:disabled { opacity: .5; }
-  .err { margin-top: 10px; color: #b00020; font-size: 13px; }
-  .hint { margin-top: 10px; color: #666; font-size: 13px; }
+  .err { margin-top: 10px; color: var(--danger); font-size: 13px; }
+  .hint { margin-top: 10px; color: var(--muted); font-size: 13px; }
   .list { list-style:none; padding: 0; margin: 12px 0; display:flex; flex-direction:column; gap:10px; }
-  .item { border: 1px solid #eee; border-radius: 12px; padding: 12px; }
+  .item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); }
   .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .check { display:flex; gap:10px; align-items:center; }
   .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; }
   .titleBtn:hover { text-decoration: underline; }
-  .pill { font-size: 12px; border: 1px solid #ddd; border-radius: 999px; padding: 2px 8px; color:#444; }
-  .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee; display:flex; gap: 10px; flex-wrap: wrap; }
+  .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+  .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 10px; flex-wrap: wrap; }
   .field { display:flex; flex-direction:column; gap: 6px; }
-  .field label { font-size: 12px; color:#555; }
-  select { padding: 10px; border-radius: 10px; border: 1px solid #ccc; min-width: 180px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  select { padding: 10px; border-radius: 10px; min-width: 180px; }
   .done { text-decoration: line-through; color: #777; }
-  .notes { margin-left: 28px; margin-top: 6px; color: #333; font-size: 14px; }
+  .notes { margin-left: 28px; margin-top: 6px; color: var(--text); font-size: 14px; opacity: 0.9; }
   .notes a { color: inherit; text-decoration: underline; }
-  .meta { margin-left: 28px; margin-top: 6px; color: #666; font-size: 12px; }
+  .meta { margin-left: 28px; margin-top: 6px; color: var(--muted); font-size: 12px; }
 </style>

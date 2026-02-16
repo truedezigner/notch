@@ -46,12 +46,12 @@
 </div>
 
 <style>
-  .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--panel); }
   .row { display:flex; flex-direction:column; gap:6px; margin: 10px 0; }
-  label { font-size: 12px; color: #555; }
-  input { padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
-  button { padding: 10px 12px; border-radius: 10px; border: 1px solid #111; background: #111; color: #fff; width: 100%; }
+  label { font-size: 12px; color: var(--muted); }
+  input { padding: 10px; border-radius: 10px; }
+  button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); width: 100%; font-weight: 700; }
   button:disabled { opacity: 0.5; }
-  .err { margin: 10px 0; color: #b00020; font-size: 13px; }
-  .hint { margin: 10px 0 0; color: #666; font-size: 12px; }
+  .err { margin: 10px 0; color: var(--danger); font-size: 13px; }
+  .hint { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
 </style>
