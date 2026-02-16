@@ -160,23 +160,13 @@
               history.pushState({}, '', next);
             }}>{t.title}</button>
           </label>
-          {#if t.assigned_to}
-            <span class="pill">{userLabel(t.assigned_to)}</span>
-          {/if}
-        </div>
 
-        <!-- Todos are title-only (no description field). -->
+          <div class="right">
+            {#if t.assigned_to}
+              <span class="pill">{userLabel(t.assigned_to)}</span>
+            {/if}
 
-        {#if t.due_at}
-          <div class="meta">Due: {fmtTime(t.due_at)}</div>
-        {/if}
-        {#if t.remind_at}
-          <div class="meta">Remind: {fmtTime(t.remind_at)}</div>
-        {/if}
-
-        {#if expandedId === t.id}
-          <div class="editor">
-            <div class="toolbar">
+            {#if expandedId === t.id}
               <button class="iconBtn" type="button" title="Copy link" aria-label="Copy link" on:click={async ()=>{
                 const base = location.pathname.includes('/app/') ? '/app/' : '/';
                 const url = `${location.origin}${base}todos/${encodeURIComponent(t.id)}`;
@@ -196,8 +186,21 @@
                   await refresh();
                 } catch (err2:any) { err = err2?.message || String(err2); }
               }}>Delete</button>
-            </div>
+            {/if}
+          </div>
+        </div>
 
+        <!-- Todos are title-only (no description field). -->
+
+        {#if t.due_at}
+          <div class="meta">Due: {fmtTime(t.due_at)}</div>
+        {/if}
+        {#if t.remind_at}
+          <div class="meta">Remind: {fmtTime(t.remind_at)}</div>
+        {/if}
+
+        {#if expandedId === t.id}
+          <div class="editor">
             <div class="field">
               <label for={`title-${t.id}`}>Title</label>
               <input id={`title-${t.id}`} value={t.title} on:change={async (e)=>{
@@ -311,14 +314,14 @@
   .list { list-style:none; padding: 0; margin: 12px 0; display:flex; flex-direction:column; gap:10px; }
   .item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); }
   .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .right { display:flex; align-items:center; gap:8px; }
   .check { display:flex; gap:10px; align-items:center; }
   .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; color: var(--text); }
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
   .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 14px; flex-wrap: wrap; }
 
-  .toolbar { width: 100%; display:flex; justify-content:flex-end; }
-  .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
+  .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; display:inline-flex; align-items:center; justify-content:center; }
   /* dots (removed) */
 
   .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
