@@ -56,6 +56,13 @@ export async function createNoteGroup(name: string, shared_with: string[] = []):
   return j.group as NoteGroup;
 }
 
+export async function patchNoteGroup(id: string, patch: any): Promise<NoteGroup> {
+  const j = await req(`/api/note-groups/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(patch) }
+  );
+  return j.group as NoteGroup;
+}
+
 export async function listNotes(group_id?: string | null, query?: string | null, limit = 200): Promise<Note[]> {
   const qs = new URLSearchParams();
   if (group_id) qs.set('group_id', group_id);

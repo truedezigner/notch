@@ -128,6 +128,12 @@ async def create_note_group(payload: dict, p: Principal = Depends(require_princi
     return {"ok": True, "group": group}
 
 
+@app.patch("/api/note-groups/{group_id}")
+async def patch_note_group(group_id: str, payload: dict, p: Principal = Depends(require_principal)):
+    group = notes_api.patch_group(p=p, group_id=group_id, payload=payload)
+    return {"ok": True, "group": group}
+
+
 @app.get("/api/notes")
 async def list_notes(
     query: str | None = None,

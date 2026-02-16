@@ -1,17 +1,19 @@
 <script lang="ts">
   import type { User } from './api';
   import { listUsers } from './api';
-  import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup } from './notes_api';
+  import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup } from './notes_api';
 
   export let initialSelectedId: string | null = null;
 
-  export type NoteGroup = { id: string; name: string };
+  export type NoteGroup = { id: string; name: string; shared_with?: string[] };
   export type Note = { id: string; group_id?: string | null; title: string; body_md: string; shared_with: string[]; version: number; updated_at: number };
 
   let users: User[] = [];
   let groups: NoteGroup[] = [];
   let activeGroupId: string | null = null;
   let notes: Note[] = [];
+
+  let groupSharedWith: string[] = [];
 
   let q = '';
 
@@ -43,6 +45,7 @@
       users = await listUsers();
       groups = await listNoteGroups();
       if (!activeGroupId && groups.length) activeGroupId = groups[0].id;
+      groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
       notes = await listNotes(activeGroupId, q);
       // If the currently-selected note no longer exists in this view, clear the editor.
       if (selectedId && !notes.some(n => n.id === selectedId)) {
@@ -81,6 +84,7 @@
     body = '';
     sharedWith = [];
     version = null;
+    groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
     refresh();
   }
 
@@ -207,6 +211,29 @@
       <input bind:value={q} placeholder="Search…" on:input={refresh} />
     </div>
 
+    <div class="share" style="margin-top: 10px;">
+      <div class="label">Group shared with</div>
+      <div class="shareBox">
+        {#each users as u}
+          <label class="shareRow">
+            <input type="checkbox" checked={groupSharedWith.includes(u.id)} on:change={async (e)=>{
+              if (!activeGroupId) return;
+              const checked = (e.currentTarget as HTMLInputElement).checked;
+              const next = new Set(groupSharedWith);
+              if (checked) next.add(u.id); else next.delete(u.id);
+              groupSharedWith = Array.from(next);
+              try {
+                await patchNoteGroup(activeGroupId, { shared_with: groupSharedWith });
+                await refresh();
+              } catch (e2:any) { err = e2?.message || String(e2); }
+            }} />
+            <span>{u.display_name}</span>
+          </label>
+        {/each}
+      </div>
+      <div class="hint">(Sharing a group shares all notes in it.)</div>
+    </div>
+
     {#if err}
       <div class="err">{err}</div>
     {/if}
@@ -256,6 +283,26 @@
             err = e?.message || String(e);
           }
         }}>Delete</button>
+      </div>
+
+      <div class="metaRow">
+        <div class="field">
+          <label for="note-group">Group</label>
+          <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
+            const v = (e.currentTarget as HTMLSelectElement).value;
+            if (!selectedId || version === null) return;
+            try {
+              const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
+              version = updated.version;
+              activeGroupId = updated.group_id || activeGroupId;
+              await refresh();
+            } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
+          }}>
+            {#each groups as g}
+              <option value={g.id}>{g.name}</option>
+            {/each}
+          </select>
+        </div>
       </div>
 
       <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
@@ -347,6 +394,8 @@
 
   .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
   .trash:hover { filter: brightness(1.08); }
+  .metaRow { margin-top: 10px; display:flex; gap: 12px; flex-wrap: wrap; }
+  .metaRow .field { display:flex; flex-direction:column; gap: 6px; }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
 
   .share { margin-top: 10px; }

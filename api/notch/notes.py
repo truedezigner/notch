@@ -61,6 +61,50 @@ def list_groups(*, p: Principal) -> list[dict[str, Any]]:
     return [_row_to_group(dict(r)) for r in rows]
 
 
+def patch_group(*, p: Principal, group_id: str, payload: dict) -> dict[str, Any]:
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    fields: dict[str, Any] = {}
+
+    if "name" in payload:
+        v = (payload.get("name") or "").strip()
+        if not v:
+            raise HTTPException(status_code=400, detail="Missing name")
+        fields["name"] = v
+
+    if "shared_with" in payload:
+        v = payload.get("shared_with")
+        if not isinstance(v, list):
+            raise HTTPException(status_code=400, detail="shared_with must be list")
+        fields["shared_with"] = _dumps_list([str(x) for x in v])
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM note_groups WHERE id=?", (group_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        # Only creator can modify group settings.
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can edit")
+
+        sets = []
+        params: list[Any] = []
+        for k, v in fields.items():
+            sets.append(f"{k}=?")
+            params.append(v)
+        sets.append("updated_at=?")
+        params.append(now())
+        params.append(group_id)
+        con.execute(f"UPDATE note_groups SET {', '.join(sets)} WHERE id=?", params)
+        row2 = con.execute("SELECT * FROM note_groups WHERE id=?", (group_id,)).fetchone()
+
+    return _row_to_group(dict(row2))
+
+
 def create_group(*, p: Principal, payload: dict) -> dict[str, Any]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")
@@ -90,8 +134,11 @@ def list_notes(*, p: Principal, query: str | None, group_id: str | None, limit: 
 
     q = (query or "").strip().lower()
     params: list[Any] = []
-    where = ["(created_by=? OR instr(shared_with, ?) > 0)"]
-    params.extend([p.user["id"], p.user["id"]])
+    # visible if: own note OR note.shared_with includes me OR note.group is shared with me
+    where = [
+        "(created_by=? OR instr(shared_with, ?) > 0 OR EXISTS(SELECT 1 FROM note_groups g WHERE g.id=notes.group_id AND instr(g.shared_with, ?) > 0))"
+    ]
+    params.extend([p.user["id"], p.user["id"], p.user["id"]])
 
     if group_id:
         where.append("group_id=?")
@@ -237,7 +284,19 @@ def _can_see(user_id: str, note: dict) -> bool:
     if note.get("created_by") == user_id:
         return True
     sw = _loads_list(note.get("shared_with"))
-    return user_id in sw
+    if user_id in sw:
+        return True
+
+    gid = note.get("group_id")
+    if gid:
+        with tx() as con:
+            row = con.execute("SELECT shared_with FROM note_groups WHERE id=?", (str(gid),)).fetchone()
+            if row:
+                gsw = _loads_list(row["shared_with"])  # type: ignore[index]
+                if user_id in gsw:
+                    return True
+
+    return False
 
 
 def _row_to_group(row: dict) -> dict[str, Any]:
