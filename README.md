@@ -24,14 +24,23 @@ curl -sS -X POST http://localhost:8080/api/admin/bootstrap \
   -d '{"handle":"jon","display_name":"Jon","password":"REPLACE_ME"}'
 ```
 
-## Build container
+## Build container (local)
 
 ```bash
 docker build -t notch:0.1.0 .
 ```
 
+## Ship (GHCR)
+
+This repo includes a GitHub Actions workflow that builds & pushes to GHCR on:
+- pushes to `main` (tag: `main`)
+- tags like `v0.1.0`
+
+After the first run, images will appear at:
+- `ghcr.io/truedezigner/notch:<tag>`
+
 ## Deploy
 
 See Portainer stacks in `/home/legend/.openclaw/workspace`:
 - `portainer-ntfy.yml`
-- `portainer-notes-todos.yml` (update image to GHCR tag)
+- `portainer-notes-todos.yml` (set image to a pinned GHCR tag)
