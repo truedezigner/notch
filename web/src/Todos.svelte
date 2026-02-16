@@ -13,6 +13,7 @@
   let newTitle = '';
   let newNotes = '';
   let includeDone = false;
+  export let initialExpandedId: string | null = null;
   let expandedId: string | null = null;
 
   function fmtTime(ts?: number | null) {
@@ -66,6 +67,10 @@
       // load users first for assignee labels
       users = await listUsers();
       todos = await listTodos(includeDone);
+      if (initialExpandedId) {
+        const found = todos.find(t => t.id === initialExpandedId);
+        if (found) expandedId = initialExpandedId;
+      }
     } catch (e: any) {
       err = e?.message || String(e);
     } finally {
@@ -134,7 +139,13 @@
         <div class="row1">
           <label class="check">
             <input type="checkbox" checked={t.done} on:change={() => toggle(t)} />
-            <button type="button" class:done={t.done} class="titleBtn" on:click={() => expandedId = expandedId === t.id ? null : t.id}>{t.title}</button>
+            <button type="button" class:done={t.done} class="titleBtn" on:click={() => {
+              expandedId = expandedId === t.id ? null : t.id;
+              // update URL for deep-linking
+              const base = location.pathname.includes('/app/') ? '/app/' : '/';
+              const next = expandedId ? `${base}todos/${encodeURIComponent(t.id)}` : `${base}`;
+              history.pushState({}, '', next);
+            }}>{t.title}</button>
           </label>
           {#if t.assigned_to}
             <span class="pill">{userLabel(t.assigned_to)}</span>
@@ -210,14 +221,14 @@
   .item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); }
   .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .check { display:flex; gap:10px; align-items:center; }
-  .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; }
+  .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; color: var(--text); }
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
   .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 10px; flex-wrap: wrap; }
   .field { display:flex; flex-direction:column; gap: 6px; }
   .field label { font-size: 12px; color: var(--muted); }
   select { padding: 10px; border-radius: 10px; min-width: 180px; }
-  .done { text-decoration: line-through; color: #777; }
+  .done { text-decoration: line-through; color: var(--muted); }
   .notes { margin-left: 28px; margin-top: 6px; color: var(--text); font-size: 14px; opacity: 0.9; }
   .notes a { color: inherit; text-decoration: underline; }
   .meta { margin-left: 28px; margin-top: 6px; color: var(--muted); font-size: 12px; }
