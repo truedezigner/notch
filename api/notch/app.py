@@ -24,6 +24,15 @@ def now() -> int:
     return int(time.time())
 
 
+def is_admin_user(user_id: str) -> bool:
+    # Admin = the first user ever created (bootstrap user). Simple and works for LAN MVP.
+    with tx() as con:
+        row = con.execute("SELECT id FROM users ORDER BY created_at ASC LIMIT 1").fetchone()
+        if not row:
+            return False
+        return row["id"] == user_id
+
+
 def init_db() -> None:
     from . import schema  # noqa
 
@@ -74,22 +83,42 @@ async def login(payload: dict):
             raise HTTPException(status_code=401, detail="Invalid login")
 
     token = issue_session(row["id"])
-    return {"ok": True, "token": token, "user": {"id": row["id"], "handle": row["handle"], "display_name": row["display_name"]}}
+    return {
+        "ok": True,
+        "token": token,
+        "user": {
+            "id": row["id"],
+            "handle": row["handle"],
+            "display_name": row["display_name"],
+            "is_admin": is_admin_user(row["id"]),
+        },
+    }
 
 
 @app.get("/api/me")
 async def me(p: Principal = Depends(require_principal)):
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="Not a user session")
-    return {"ok": True, "user": p.user}
+    u = dict(p.user or {})
+    u["is_admin"] = is_admin_user(u.get("id") or "")
+    return {"ok": True, "user": u}
 
 
 @app.get("/api/users")
 async def list_users(p: Principal = Depends(require_principal)):
     # allow service to map handles; allow users too.
     with tx() as con:
-        rows = con.execute("SELECT id,handle,display_name FROM users ORDER BY handle").fetchall()
-    return {"ok": True, "users": [dict(r) for r in rows]}
+        rows = con.execute("SELECT id,handle,display_name,created_at FROM users ORDER BY handle").fetchall()
+    first_id = None
+    if rows:
+        first_id = sorted([dict(r) for r in rows], key=lambda x: int(x.get("created_at") or 0))[0]["id"]
+    users = []
+    for r in rows:
+        d = dict(r)
+        d.pop("created_at", None)
+        d["is_admin"] = (d.get("id") == first_id)
+        users.append(d)
+    return {"ok": True, "users": users}
 
 
 # --- Todo lists ---
@@ -195,6 +224,34 @@ async def patch_todo(todo_id: str, payload: dict, p: Principal = Depends(require
 @app.delete("/api/todos/{todo_id}")
 async def delete_todo(todo_id: str, p: Principal = Depends(require_principal)):
     return todos_api.delete_todo(p=p, todo_id=todo_id)
+
+
+@app.post("/api/admin/users")
+async def admin_create_user(payload: dict, p: Principal = Depends(require_principal)):
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+    if not is_admin_user(p.user["id"]):
+        raise HTTPException(status_code=403, detail="Admin required")
+
+    handle = (payload.get("handle") or payload.get("username") or "").strip().lower()
+    display_name = (payload.get("display_name") or handle).strip() or handle
+    password = (payload.get("password") or "").strip()
+    if not handle or not password:
+        raise HTTPException(status_code=400, detail="Missing handle/password")
+
+    uid = str(uuid.uuid4())
+    t = now()
+    with tx() as con:
+        exists = con.execute("SELECT 1 FROM users WHERE handle=?", (handle,)).fetchone()
+        if exists:
+            raise HTTPException(status_code=409, detail="Handle already exists")
+        con.execute(
+            "INSERT INTO users(id,handle,display_name,password_hash,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+            (uid, handle, display_name, hash_password(password), t, t),
+        )
+        row = con.execute("SELECT id,handle,display_name FROM users WHERE id=?", (uid,)).fetchone()
+
+    return {"ok": True, "user": dict(row)}
 
 
 @app.post("/api/admin/bootstrap")

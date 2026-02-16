@@ -2,11 +2,14 @@
   import Login from './Login.svelte';
   import Todos from './Todos.svelte';
   import Notes from './Notes.svelte';
-  import { getToken } from './api';
+  import Admin from './Admin.svelte';
+  import type { User } from './api';
+  import { getToken, me } from './api';
 
   let authed = !!getToken();
+  let currentUser: User | null = null;
   let route = '';
-  let tab: 'todos' | 'notes' = 'todos';
+  let tab: 'todos' | 'notes' | 'admin' = 'todos';
   let todoId: string | null = null;
   let noteId: string | null = null;
 
@@ -17,7 +20,8 @@
     route = sub || '';
 
     // tabs
-    if (route.startsWith('notes')) tab = 'notes';
+    if (route.startsWith('admin')) tab = 'admin';
+    else if (route.startsWith('notes')) tab = 'notes';
     else tab = 'todos';
 
     const m = route.match(/^todos\/([^/]+)/);
@@ -27,16 +31,26 @@
     noteId = n ? decodeURIComponent(n[1]) : null;
   }
 
-  function goto(next: 'todos' | 'notes') {
+  function goto(next: 'todos' | 'notes' | 'admin') {
     const base = location.pathname.includes('/app/') ? '/app/' : '/';
-    history.pushState({}, '', next === 'notes' ? `${base}notes` : `${base}`);
+    if (next === 'notes') history.pushState({}, '', `${base}notes`);
+    else if (next === 'admin') history.pushState({}, '', `${base}admin`);
+    else history.pushState({}, '', `${base}`);
     parseRoute();
   }
 
   parseRoute();
   window.addEventListener('popstate', parseRoute);
 
-  function done(){ authed = true; parseRoute(); }
+  async function loadMe() {
+    if (!authed) { currentUser = null; return; }
+    try { currentUser = await me(); }
+    catch { currentUser = null; }
+  }
+
+  function done(){ authed = true; parseRoute(); void loadMe(); }
+
+  loadMe();
 </script>
 
 <main style="max-width: 820px; margin: 16px auto; font-family: system-ui, -apple-system, sans-serif; padding: 0 12px;">
@@ -45,12 +59,19 @@
     <div class="tabs">
       <button class:active={tab==='todos'} on:click={() => goto('todos')}>Todos</button>
       <button class:active={tab==='notes'} on:click={() => goto('notes')}>Notes</button>
+      {#if currentUser?.is_admin}
+        <button class:active={tab==='admin'} on:click={() => goto('admin')}>Admin</button>
+      {/if}
     </div>
 
     {#if tab === 'todos'}
       <Todos initialExpandedId={todoId} />
-    {:else}
+    {:else if tab === 'notes'}
       <Notes initialSelectedId={noteId} />
+    {:else}
+      {#if currentUser}
+        <Admin me={currentUser} />
+      {/if}
     {/if}
   {:else}
     <Login onDone={done} />

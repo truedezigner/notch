@@ -1,4 +1,4 @@
-export type User = { id: string; handle: string; display_name: string };
+export type User = { id: string; handle: string; display_name: string; is_admin?: boolean };
 export type Todo = {
   id: string;
   list_id?: string | null;
@@ -56,6 +56,14 @@ export async function me(): Promise<User> {
 export async function listUsers(): Promise<User[]> {
   const j = await req('/api/users');
   return j.users;
+}
+
+export async function adminCreateUser(handle: string, password: string, display_name?: string): Promise<User> {
+  const j = await req('/api/admin/users', {
+    method: 'POST',
+    body: JSON.stringify({ handle, password, display_name })
+  });
+  return j.user as User;
 }
 
 export type TodoList = { id: string; name: string; created_by: string; shared_with: string[]; created_at: number; updated_at: number };
