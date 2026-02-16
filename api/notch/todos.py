@@ -138,6 +138,26 @@ def get_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
     return _row_to_todo(todo)
 
 
+def delete_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        if not _can_see(p.user["id"], cur):
+            raise HTTPException(status_code=404, detail="Not found")
+        # Only creator can delete (safer than allowing shared users to delete your data).
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can delete")
+
+        con.execute("DELETE FROM todos WHERE id=?", (todo_id,))
+
+    return {"ok": True, "deleted": True, "id": todo_id}
+
+
 def patch_todo(*, p: Principal, todo_id: str, payload: dict) -> dict[str, Any]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")

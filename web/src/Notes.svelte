@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { User } from './api';
   import { listUsers } from './api';
-  import { getNote, patchNote, createNote, listNotes, listNoteGroups, createNoteGroup } from './notes_api';
+  import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup } from './notes_api';
 
   export let initialSelectedId: string | null = null;
 
@@ -231,6 +231,17 @@
           {#if saveStatus === 'error'}Save error{/if}
         </div>
         <button on:click={save} disabled={!selectedId || version===null || saveStatus==='saving'}>Save</button>
+        <button class="trash" type="button" on:click={async () => {
+          if (!selectedId) return;
+          if (!confirm('Delete this note?')) return;
+          try {
+            await deleteNote(selectedId);
+            await refresh();
+            closeEditor();
+          } catch (e:any) {
+            err = e?.message || String(e);
+          }
+        }}>Delete</button>
       </div>
 
       <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
@@ -291,6 +302,8 @@
   .head .title { flex: 1; font-weight: 800; }
   .status { font-size: 12px; color: var(--muted); min-width: 70px; text-align: right; }
   .back { display:none; background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
+  .trash:hover { filter: brightness(1.08); }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
 
   .share { margin-top: 10px; }

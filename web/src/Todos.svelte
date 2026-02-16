@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Todo, TodoList } from './api';
-  import { createTodo, createList, listLists, listTodos, patchTodo, setToken } from './api';
+  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
@@ -176,6 +176,16 @@
 
         {#if expandedId === t.id}
           <div class="editor">
+            <div class="dangerRow">
+              <button class="trash" type="button" on:click={async () => {
+                if (!confirm('Delete this todo?')) return;
+                try {
+                  await deleteTodo(t.id);
+                  expandedId = null;
+                  await refresh();
+                } catch (err2:any) { err = err2?.message || String(err2); }
+              }}>Delete</button>
+            </div>
             <div class="field">
               <label for={`assign-${t.id}`}>Assign</label>
               <select id={`assign-${t.id}`} value={t.assigned_to || ''} on:change={async (e) => {
@@ -266,6 +276,9 @@
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
   .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 14px; flex-wrap: wrap; }
+  .dangerRow { width: 100%; display:flex; justify-content:flex-end; }
+  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
+  .trash:hover { filter: brightness(1.08); }
   .field { display:flex; flex-direction:column; gap: 6px; }
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }

@@ -160,6 +160,25 @@ def get_note(*, p: Principal, note_id: str) -> dict[str, Any]:
     return _row_to_note(note)
 
 
+def delete_note(*, p: Principal, note_id: str) -> dict[str, Any]:
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM notes WHERE id=?", (note_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        if not _can_see(p.user["id"], cur):
+            raise HTTPException(status_code=404, detail="Not found")
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can delete")
+
+        con.execute("DELETE FROM notes WHERE id=?", (note_id,))
+
+    return {"ok": True, "deleted": True, "id": note_id}
+
+
 def patch_note(*, p: Principal, note_id: str, payload: dict) -> dict[str, Any]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")

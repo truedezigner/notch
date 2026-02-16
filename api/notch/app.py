@@ -157,6 +157,11 @@ async def patch_note(note_id: str, payload: dict, p: Principal = Depends(require
     return {"ok": True, "note": note}
 
 
+@app.delete("/api/notes/{note_id}")
+async def delete_note(note_id: str, p: Principal = Depends(require_principal)):
+    return notes_api.delete_note(p=p, note_id=note_id)
+
+
 @app.get("/api/todos")
 async def list_todos(
     query: str | None = None,
@@ -179,6 +184,11 @@ async def get_todo(todo_id: str, p: Principal = Depends(require_principal)):
 async def patch_todo(todo_id: str, payload: dict, p: Principal = Depends(require_principal)):
     todo = todos_api.patch_todo(p=p, todo_id=todo_id, payload=payload)
     return {"ok": True, "todo": todo}
+
+
+@app.delete("/api/todos/{todo_id}")
+async def delete_todo(todo_id: str, p: Principal = Depends(require_principal)):
+    return todos_api.delete_todo(p=p, todo_id=todo_id)
 
 
 @app.post("/api/admin/bootstrap")

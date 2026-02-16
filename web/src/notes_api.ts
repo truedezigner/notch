@@ -83,3 +83,8 @@ export async function patchNote(id: string, patch: any): Promise<Note> {
   );
   return j.note as Note;
 }
+
+export async function deleteNote(id: string): Promise<{ ok: boolean; deleted: boolean; id: string }> {
+  const j = await req(`/api/notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return j;
+}

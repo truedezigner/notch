@@ -89,3 +89,8 @@ export async function patchTodo(id: string, patch: any): Promise<Todo> {
   const j = await req(`/api/todos/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
   return j.todo;
 }
+
+export async function deleteTodo(id: string): Promise<{ ok: boolean; deleted: boolean; id: string }> {
+  const j = await req(`/api/todos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return j;
+}
