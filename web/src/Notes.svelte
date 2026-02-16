@@ -4,6 +4,7 @@
   import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup } from './notes_api';
 
   export let initialSelectedId: string | null = null;
+  let handledInitial = false;
 
   export type NoteGroup = { id: string; name: string; shared_with?: string[] };
   export type Note = { id: string; group_id?: string | null; title: string; body_md: string; shared_with: string[]; version: number; updated_at: number };
@@ -28,6 +29,11 @@
   let newTitle = '';
   let err: string | null = null;
   let loading = true;
+
+  let showSearch = false;
+  let showNewNote = false;
+  let showNewGroup = false;
+  let showGroupShare = false;
 
   let saveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' = 'idle';
   let saveMsg = '';
@@ -57,8 +63,9 @@
         version = null;
       }
 
-      // Deep-link support: /app/notes/:id
-      if (initialSelectedId && !selectedId) {
+      // Deep-link support: /app/notes/:id (only once on initial load)
+      if (!handledInitial && initialSelectedId && !selectedId) {
+        handledInitial = true;
         let found = notes.find(n => n.id === initialSelectedId);
         if (!found) {
           // Fetch directly; then switch group and reload that group's notes.
@@ -199,41 +206,78 @@
       </select>
     </div>
 
-    <div class="addRow">
-      <input bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
-      <button on:click={addGroup} disabled={!newGroupName.trim()}>Add group</button>
+    <!-- Mobile toolbar (keeps the list near the top) -->
+    <div class="mobileBar">
+      <button class="iconBtn" type="button" title="Search" aria-label="Search" on:click={() => { showSearch = !showSearch; }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12Zm0-2a8 8 0 1 0 4.9 14.3l4.4 4.4 1.4-1.4-4.4-4.4A8 8 0 0 0 10 2Z"/>
+        </svg>
+      </button>
+
+      <button class="iconBtn" type="button" title="New note" aria-label="New note" on:click={() => { showNewNote = !showNewNote; showNewGroup = false; }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z"/>
+        </svg>
+      </button>
+
+      <button class="iconBtn" type="button" title="New group" aria-label="New group" on:click={() => { showNewGroup = !showNewGroup; showNewNote = false; }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M10 6h11v2H10V6ZM3 6h5v5H3V6Zm7 10h11v2H10v-2ZM3 16h5v5H3v-5Z"/>
+        </svg>
+      </button>
+
+      <button class="iconBtn" type="button" title="Group sharing" aria-label="Group sharing" on:click={() => { showGroupShare = !showGroupShare; }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3ZM8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h7v-2.5C24 14.17 18.33 13 16 13Z"/>
+        </svg>
+      </button>
     </div>
 
-    <div class="addRow">
-      <input bind:value={newTitle} placeholder="New note…" on:keydown={(e)=>e.key==='Enter'&&addNote()} />
-      <button on:click={addNote} disabled={!newTitle.trim()}>Add</button>
-    </div>
+    <div class="controls">
+      {#if showNewGroup}
+        <div class="addRow">
+          <input bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
+          <button on:click={addGroup} disabled={!newGroupName.trim()}>Add group</button>
+        </div>
+      {/if}
 
-    <div class="searchRow">
-      <input bind:value={q} placeholder="Search…" on:input={refresh} />
-    </div>
+      {#if showNewNote}
+        <div class="addRow">
+          <input bind:value={newTitle} placeholder="New note…" on:keydown={(e)=>e.key==='Enter'&&addNote()} />
+          <button on:click={addNote} disabled={!newTitle.trim()}>Add</button>
+        </div>
+      {/if}
 
-    <div class="share" style="margin-top: 10px;">
-      <div class="label">Group shared with</div>
-      <div class="shareBox">
-        {#each users as u}
-          <label class="shareRow">
-            <input type="checkbox" checked={groupSharedWith.includes(u.id)} on:change={async (e)=>{
-              if (!activeGroupId) return;
-              const checked = (e.currentTarget as HTMLInputElement).checked;
-              const next = new Set(groupSharedWith);
-              if (checked) next.add(u.id); else next.delete(u.id);
-              groupSharedWith = Array.from(next);
-              try {
-                await patchNoteGroup(activeGroupId, { shared_with: groupSharedWith });
-                await refresh();
-              } catch (e2:any) { err = e2?.message || String(e2); }
-            }} />
-            <span>{u.display_name}</span>
-          </label>
-        {/each}
-      </div>
-      <div class="hint">(Sharing a group shares all notes in it.)</div>
+      {#if showSearch}
+        <div class="searchRow">
+          <input bind:value={q} placeholder="Search…" on:input={refresh} />
+        </div>
+      {/if}
+
+      {#if showGroupShare}
+        <div class="share" style="margin-top: 10px;">
+          <div class="label">Group shared with</div>
+          <div class="shareBox">
+            {#each users as u}
+              <label class="shareRow">
+                <input type="checkbox" checked={groupSharedWith.includes(u.id)} on:change={async (e)=>{
+                  if (!activeGroupId) return;
+                  const checked = (e.currentTarget as HTMLInputElement).checked;
+                  const next = new Set(groupSharedWith);
+                  if (checked) next.add(u.id); else next.delete(u.id);
+                  groupSharedWith = Array.from(next);
+                  try {
+                    await patchNoteGroup(activeGroupId, { shared_with: groupSharedWith });
+                    await refresh();
+                  } catch (e2:any) { err = e2?.message || String(e2); }
+                }} />
+                <span>{u.display_name}</span>
+              </label>
+            {/each}
+          </div>
+          <div class="hint">(Sharing a group shares all notes in it.)</div>
+        </div>
+      {/if}
     </div>
 
     {#if err}
@@ -338,6 +382,10 @@
   .grid { display:grid; grid-template-columns: 280px 1fr; gap: 12px; }
   @media (max-width: 900px){
     .grid { grid-template-columns: 1fr; }
+
+    /* Show the compact toolbar on mobile; hide bulky controls by default */
+    .mobileBar { display:flex; }
+
     /* Mobile-first: list view OR editor view (full-screen) */
     .grid.editing .sidebar { display:none; }
     .grid.editing .editor { padding: 0; border: none; background: transparent; overflow-x: hidden; }
@@ -375,6 +423,10 @@
   h3 { margin: 0; }
   select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
+
+  .mobileBar { display:none; gap: 8px; margin-top: 10px; }
+
+  .controls { margin-top: 0; }
 
   .addRow { display:flex; gap:8px; margin-top: 10px; }
   .addRow input { flex: 1; }
