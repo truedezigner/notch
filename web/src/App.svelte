@@ -8,6 +8,7 @@
   let route = '';
   let tab: 'todos' | 'notes' = 'todos';
   let todoId: string | null = null;
+  let noteId: string | null = null;
 
   function parseRoute() {
     const p = location.pathname;
@@ -21,6 +22,9 @@
 
     const m = route.match(/^todos\/([^/]+)/);
     todoId = m ? decodeURIComponent(m[1]) : null;
+
+    const n = route.match(/^notes\/([^/]+)/);
+    noteId = n ? decodeURIComponent(n[1]) : null;
   }
 
   function goto(next: 'todos' | 'notes') {
@@ -46,7 +50,7 @@
     {#if tab === 'todos'}
       <Todos initialExpandedId={todoId} />
     {:else}
-      <Notes />
+      <Notes initialSelectedId={noteId} />
     {/if}
   {:else}
     <Login onDone={done} />

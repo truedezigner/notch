@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { User } from './api';
-  import { listUsers, patchNote, createNote, listNotes, listNoteGroups, createNoteGroup } from './notes_api';
+  import { listUsers } from './api';
+  import { getNote, patchNote, createNote, listNotes, listNoteGroups, createNoteGroup } from './notes_api';
+
+  export let initialSelectedId: string | null = null;
 
   export type NoteGroup = { id: string; name: string };
   export type Note = { id: string; group_id?: string | null; title: string; body_md: string; shared_with: string[]; version: number; updated_at: number };
@@ -9,6 +12,8 @@
   let groups: NoteGroup[] = [];
   let activeGroupId: string | null = null;
   let notes: Note[] = [];
+
+  let q = '';
 
   let selectedId: string | null = null;
   let title = '';
@@ -20,6 +25,11 @@
   let newTitle = '';
   let err: string | null = null;
   let loading = true;
+
+  let saveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' = 'idle';
+  let saveMsg = '';
+  let saveTimer: any = null;
+  let lastSavedAt: number | null = null;
 
   function userLabel(id: string) {
     const u = users.find(u => u.id === id);
@@ -33,12 +43,59 @@
       users = await listUsers();
       groups = await listNoteGroups();
       if (!activeGroupId && groups.length) activeGroupId = groups[0].id;
-      notes = await listNotes(activeGroupId);
+      notes = await listNotes(activeGroupId, q);
+      // If the currently-selected note no longer exists in this view, clear the editor.
+      if (selectedId && !notes.some(n => n.id === selectedId)) {
+        selectedId = null;
+        title = '';
+        body = '';
+        sharedWith = [];
+        version = null;
+      }
+
+      // Deep-link support: /app/notes/:id
+      if (initialSelectedId && !selectedId) {
+        let found = notes.find(n => n.id === initialSelectedId);
+        if (!found) {
+          // Fetch directly; then switch group and reload that group's notes.
+          const n = await getNote(initialSelectedId);
+          if (n.group_id && n.group_id !== activeGroupId) {
+            activeGroupId = n.group_id;
+            notes = await listNotes(activeGroupId, q);
+          }
+          found = notes.find(x => x.id === initialSelectedId) || n;
+        }
+        if (found) pick(found);
+      }
     } catch (e:any) {
       err = e?.message || String(e);
     } finally {
       loading = false;
     }
+  }
+
+  function onGroupChange() {
+    // Switching groups should not keep an unrelated note open.
+    selectedId = null;
+    title = '';
+    body = '';
+    sharedWith = [];
+    version = null;
+    refresh();
+  }
+
+  function closeEditor() {
+    selectedId = null;
+    title = '';
+    body = '';
+    sharedWith = [];
+    version = null;
+    saveStatus = 'idle';
+    saveMsg = '';
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+
+    const base = location.pathname.includes('/app/') ? '/app/' : '/';
+    history.pushState({}, '', `${base}notes`);
   }
 
   function pick(n: Note) {
@@ -47,6 +104,12 @@
     body = n.body_md || '';
     sharedWith = n.shared_with || [];
     version = n.version;
+
+    saveStatus = 'idle';
+    saveMsg = '';
+
+    const base = location.pathname.includes('/app/') ? '/app/' : '/';
+    history.pushState({}, '', `${base}notes/${encodeURIComponent(n.id)}`);
   }
 
   async function addGroup() {
@@ -72,23 +135,51 @@
     } catch (e:any) { err = e?.message || String(e); }
   }
 
+  function markDirty() {
+    if (!selectedId) return;
+    if (saveStatus !== 'saving') saveStatus = 'dirty';
+    saveMsg = '';
+
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void save();
+    }, 650);
+  }
+
   async function save() {
     if (!selectedId || version === null) return;
+    // If nothing changed recently, don't spam saves.
+    if (saveStatus === 'idle' || saveStatus === 'saved') return;
+
+    saveStatus = 'saving';
+    saveMsg = '';
+    err = null;
+
     try {
       const n = await patchNote(selectedId, { title, body_md: body, shared_with: sharedWith, if_version: version });
       version = n.version;
       notes = notes.map(x => x.id === n.id ? n : x);
-    } catch (e:any) { err = e?.message || String(e); await refresh(); }
+      saveStatus = 'saved';
+      lastSavedAt = Date.now();
+    } catch (e:any) {
+      const msg = e?.message || String(e);
+      // If we hit a version conflict, refresh and let user continue.
+      err = msg;
+      saveStatus = 'error';
+      saveMsg = msg;
+      await refresh();
+    }
   }
 
   refresh();
 </script>
 
-<div class="grid">
+<div class="grid" class:editing={!!selectedId}>
   <div class="sidebar">
     <div class="row">
       <h3>Notes</h3>
-      <select bind:value={activeGroupId} on:change={refresh}>
+      <select bind:value={activeGroupId} on:change={onGroupChange}>
         {#each groups as g}
           <option value={g.id}>{g.name}</option>
         {/each}
@@ -103,6 +194,10 @@
     <div class="addRow">
       <input bind:value={newTitle} placeholder="New note…" on:keydown={(e)=>e.key==='Enter'&&addNote()} />
       <button on:click={addNote} disabled={!newTitle.trim()}>Add</button>
+    </div>
+
+    <div class="searchRow">
+      <input bind:value={q} placeholder="Search…" on:input={refresh} />
     </div>
 
     {#if err}
@@ -127,11 +222,18 @@
   <div class="editor">
     {#if selectedId}
       <div class="head">
-        <input class="title" bind:value={title} placeholder="Title" />
-        <button on:click={save}>Save</button>
+        <button class="back" type="button" on:click={closeEditor}>Back</button>
+        <input class="title" bind:value={title} placeholder="Title" on:input={markDirty} />
+        <div class="status">
+          {#if saveStatus === 'saving'}Saving…{/if}
+          {#if saveStatus === 'dirty'}Unsaved{/if}
+          {#if saveStatus === 'saved'}Saved{/if}
+          {#if saveStatus === 'error'}Save error{/if}
+        </div>
+        <button on:click={save} disabled={!selectedId || version===null || saveStatus==='saving'}>Save</button>
       </div>
 
-      <textarea class="body" bind:value={body} placeholder="# Markdown note\n\nWrite here…"></textarea>
+      <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
 
       <div class="share">
         <div class="label">Shared with</div>
@@ -143,6 +245,7 @@
                 const next = new Set(sharedWith);
                 if (checked) next.add(u.id); else next.delete(u.id);
                 sharedWith = Array.from(next);
+                markDirty();
               }} />
               <span>{u.display_name}</span>
             </label>
@@ -158,7 +261,14 @@
 
 <style>
   .grid { display:grid; grid-template-columns: 280px 1fr; gap: 12px; }
-  @media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 900px){
+    .grid { grid-template-columns: 1fr; }
+    /* Mobile-first: list view OR editor view (full-screen) */
+    .grid.editing .sidebar { display:none; }
+    .grid.editing .editor { padding: 0; border: none; background: transparent; }
+    .grid.editing .head { position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+    .grid.editing .back { display:inline-flex; }
+  }
 
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
@@ -169,6 +279,9 @@
   .addRow { display:flex; gap:8px; margin-top: 10px; }
   .addRow input { flex: 1; }
 
+  .searchRow { margin-top: 10px; }
+  .searchRow input { width: 100%; }
+
   .list { list-style:none; padding:0; margin: 12px 0 0; display:flex; flex-direction:column; gap:8px; }
   .list button { width:100%; text-align:left; background: transparent; color: var(--text); border: 1px solid var(--border); }
   .list button.selected { outline: 2px solid rgba(255,255,255,0.18); }
@@ -176,6 +289,8 @@
   .editor { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .head { display:flex; gap:10px; align-items:center; }
   .head .title { flex: 1; font-weight: 800; }
+  .status { font-size: 12px; color: var(--muted); min-width: 70px; text-align: right; }
+  .back { display:none; background: transparent; border: 1px solid var(--border); color: var(--text); }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
 
   .share { margin-top: 10px; }

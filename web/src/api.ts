@@ -3,7 +3,8 @@ export type Todo = {
   id: string;
   list_id?: string | null;
   title: string;
-  notes?: string | null;
+  // (No description/notes field for todos)
+  __deprecated_notes?: never;
   done: boolean;
   due_at?: number | null;
   remind_at?: number | null;

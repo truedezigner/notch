@@ -108,8 +108,8 @@ def list_todos(*, p: Principal, query: str | None, include_done: bool = False, l
         params.append(str(list_id))
 
     if q:
-        where.append("(lower(title) LIKE ? OR lower(COALESCE(notes,'')) LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
+        where.append("(lower(title) LIKE ?)")
+        params.extend([f"%{q}%"])
 
     # Sort: undone first, then due date, then remind time.
     sql = (
@@ -227,11 +227,11 @@ def _can_see(user_id: str, todo: dict) -> bool:
 
 
 def _row_to_todo(row: dict) -> dict[str, Any]:
+    # Todos are intentionally title-only (no description/notes field).
     return {
         "id": row.get("id"),
         "list_id": row.get("list_id"),
         "title": row.get("title"),
-        "notes": row.get("notes"),
         "done": bool(row.get("done")),
         "due_at": row.get("due_at"),
         "remind_at": row.get("remind_at"),
