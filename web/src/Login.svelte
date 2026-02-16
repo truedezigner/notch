@@ -26,12 +26,12 @@
 <div class="card">
   <h3>Login</h3>
   <div class="row">
-    <label>Username</label>
-    <input bind:value={handle} placeholder="jon" autocapitalize="none" />
+    <label for="handle">Username</label>
+    <input id="handle" bind:value={handle} placeholder="jon" autocapitalize="none" />
   </div>
   <div class="row">
-    <label>Password</label>
-    <input bind:value={password} type="password" />
+    <label for="pw">Password</label>
+    <input id="pw" bind:value={password} type="password" />
   </div>
 
   {#if err}

@@ -2,12 +2,18 @@
   import type { Todo } from './api';
   import { createTodo, listTodos, patchTodo, setToken } from './api';
 
+  import type { User } from './api';
+  import { listUsers } from './api';
+
   let todos: Todo[] = [];
+  let users: User[] = [];
   let loading = true;
   let err: string | null = null;
 
   let newTitle = '';
   let newNotes = '';
+  let includeDone = false;
+  let expandedId: string | null = null;
 
   function fmtTime(ts?: number | null) {
     if (!ts) return '';
@@ -32,11 +38,34 @@
     return parts;
   }
 
+  function userLabel(id?: string | null) {
+    if (!id) return '';
+    const u = users.find(u => u.id === id);
+    return u ? u.display_name : '';
+  }
+
+  function toLocalInput(ts?: number | null) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function fromLocalInput(v: string): number | null {
+    const s = (v || '').trim();
+    if (!s) return null;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return null;
+    return Math.floor(d.getTime() / 1000);
+  }
+
   async function refresh() {
     loading = true;
     err = null;
     try {
-      todos = await listTodos(false);
+      // load users first for assignee labels
+      users = await listUsers();
+      todos = await listTodos(includeDone);
     } catch (e: any) {
       err = e?.message || String(e);
     } finally {
@@ -80,7 +109,10 @@
 
 <div class="top">
   <h3>Todos</h3>
-  <button class="ghost" on:click={logout}>Logout</button>
+  <div class="topRight">
+    <label class="toggle"><input type="checkbox" bind:checked={includeDone} on:change={refresh} /> Show done</label>
+    <button class="logout" on:click={logout} title="Log out">Log out</button>
+  </div>
 </div>
 
 <div class="add">
@@ -99,10 +131,15 @@
   <ul class="list">
     {#each todos as t (t.id)}
       <li class="item">
-        <label class="check">
-          <input type="checkbox" checked={t.done} on:change={() => toggle(t)} />
-          <span class:done={t.done}>{t.title}</span>
-        </label>
+        <div class="row1">
+          <label class="check">
+            <input type="checkbox" checked={t.done} on:change={() => toggle(t)} />
+            <button type="button" class:done={t.done} class="titleBtn" on:click={() => expandedId = expandedId === t.id ? null : t.id}>{t.title}</button>
+          </label>
+          {#if t.assigned_to}
+            <span class="pill">{userLabel(t.assigned_to)}</span>
+          {/if}
+        </div>
 
         {#if t.notes}
           <div class="notes">
@@ -119,14 +156,49 @@
         {#if t.remind_at}
           <div class="meta">Remind: {fmtTime(t.remind_at)}</div>
         {/if}
+
+        {#if expandedId === t.id}
+          <div class="editor">
+            <div class="field">
+              <label for={`assign-${t.id}`}>Assign</label>
+              <select id={`assign-${t.id}`} value={t.assigned_to || ''} on:change={async (e) => {
+                const v = (e.currentTarget as HTMLSelectElement).value;
+                try {
+                  const updated = await patchTodo(t.id, { assigned_to: v || null, if_version: t.version });
+                  todos = todos.map(x => x.id === updated.id ? updated : x);
+                } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+              }}>
+                <option value="">Unassigned</option>
+                {#each users as u}
+                  <option value={u.id}>{u.display_name}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="field">
+              <label for={`remind-${t.id}`}>Remind</label>
+              <input id={`remind-${t.id}`} type="datetime-local" value={toLocalInput(t.remind_at)} on:change={async (e) => {
+                const v = (e.currentTarget as HTMLInputElement).value;
+                const ts = fromLocalInput(v);
+                try {
+                  const updated = await patchTodo(t.id, { remind_at: ts, if_version: t.version });
+                  todos = todos.map(x => x.id === updated.id ? updated : x);
+                } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+              }} />
+            </div>
+          </div>
+        {/if}
       </li>
     {/each}
   </ul>
 {/if}
 
 <style>
-  .top { display:flex; justify-content:space-between; align-items:center; }
-  .ghost { background: transparent; border: 1px solid #ddd; border-radius: 10px; padding: 8px 10px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
+  .topRight { display:flex; align-items:center; gap:10px; }
+  .toggle { font-size: 12px; color:#555; display:flex; gap:6px; align-items:center; }
+  .logout { background: #fff; border: 1px solid #bbb; border-radius: 10px; padding: 8px 10px; font-weight: 700; }
+  .logout:hover { background: #f7f7f7; }
   .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid #eee; border-radius: 12px; }
   input, textarea { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
   textarea { min-height: 70px; resize: vertical; }
@@ -136,7 +208,15 @@
   .hint { margin-top: 10px; color: #666; font-size: 13px; }
   .list { list-style:none; padding: 0; margin: 12px 0; display:flex; flex-direction:column; gap:10px; }
   .item { border: 1px solid #eee; border-radius: 12px; padding: 12px; }
+  .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .check { display:flex; gap:10px; align-items:center; }
+  .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; }
+  .titleBtn:hover { text-decoration: underline; }
+  .pill { font-size: 12px; border: 1px solid #ddd; border-radius: 999px; padding: 2px 8px; color:#444; }
+  .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee; display:flex; gap: 10px; flex-wrap: wrap; }
+  .field { display:flex; flex-direction:column; gap: 6px; }
+  .field label { font-size: 12px; color:#555; }
+  select { padding: 10px; border-radius: 10px; border: 1px solid #ccc; min-width: 180px; }
   .done { text-decoration: line-through; color: #777; }
   .notes { margin-left: 28px; margin-top: 6px; color: #333; font-size: 14px; }
   .notes a { color: inherit; text-decoration: underline; }
