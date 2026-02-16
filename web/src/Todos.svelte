@@ -177,28 +177,25 @@
         {#if expandedId === t.id}
           <div class="editor">
             <div class="toolbar">
-              <details class="menu">
-                <summary class="iconBtn" aria-label="Todo options" title="Options">
-                  <span class="dots">···</span>
-                </summary>
-                <div class="menuPanel">
-                  <button type="button" class="menuItem" on:click={async ()=>{
-                    const base = location.pathname.includes('/app/') ? '/app/' : '/';
-                    const url = `${location.origin}${base}todos/${encodeURIComponent(t.id)}`;
-                    try { await navigator.clipboard.writeText(url); }
-                    catch (e:any) { err = e?.message || String(e); }
-                  }}>Copy link</button>
+              <button class="iconBtn" type="button" title="Copy link" aria-label="Copy link" on:click={async ()=>{
+                const base = location.pathname.includes('/app/') ? '/app/' : '/';
+                const url = `${location.origin}${base}todos/${encodeURIComponent(t.id)}`;
+                try { await navigator.clipboard.writeText(url); }
+                catch (e:any) { err = e?.message || String(e); }
+              }}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z" />
+                </svg>
+              </button>
 
-                  <button type="button" class="menuItem danger" on:click={async () => {
-                    if (!confirm('Delete this todo?')) return;
-                    try {
-                      await deleteTodo(t.id);
-                      expandedId = null;
-                      await refresh();
-                    } catch (err2:any) { err = err2?.message || String(err2); }
-                  }}>Delete</button>
-                </div>
-              </details>
+              <button class="trash" type="button" on:click={async () => {
+                if (!confirm('Delete this todo?')) return;
+                try {
+                  await deleteTodo(t.id);
+                  expandedId = null;
+                  await refresh();
+                } catch (err2:any) { err = err2?.message || String(err2); }
+              }}>Delete</button>
             </div>
 
             <div class="field">
@@ -322,15 +319,10 @@
 
   .toolbar { width: 100%; display:flex; justify-content:flex-end; }
   .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
-  .dots { letter-spacing: 2px; }
+  /* dots (removed) */
 
-  details.menu { position: relative; }
-  details.menu > summary { list-style: none; cursor: pointer; }
-  details.menu > summary::-webkit-details-marker { display:none; }
-  .menuPanel { position: absolute; right: 0; margin-top: 8px; min-width: 180px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 6px; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-  .menuItem { width: 100%; text-align: left; padding: 10px 10px; border-radius: 10px; background: transparent; border: 1px solid transparent; color: var(--text); font-weight: 800; }
-  .menuItem:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
-  .menuItem.danger { color: var(--danger); }
+  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
+  .trash:hover { filter: brightness(1.08); }
   .field { display:flex; flex-direction:column; gap: 6px; }
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }

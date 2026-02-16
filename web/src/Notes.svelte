@@ -237,25 +237,25 @@
           {#if saveStatus === 'saved'}Saved{/if}
           {#if saveStatus === 'error'}Save error{/if}
         </div>
+        <button class="iconBtn" type="button" title="Copy link" aria-label="Copy link" on:click={() => selectedId && copyLink(selectedId)}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z" />
+          </svg>
+        </button>
+
         <button on:click={save} disabled={!selectedId || version===null || saveStatus==='saving'}>Save</button>
 
-        <details class="menu">
-          <summary class="iconBtn" aria-label="Note options" title="Options"><span class="dots">···</span></summary>
-          <div class="menuPanel">
-            <button type="button" class="menuItem" on:click={() => selectedId && copyLink(selectedId)}>Copy link</button>
-            <button type="button" class="menuItem danger" on:click={async () => {
-              if (!selectedId) return;
-              if (!confirm('Delete this note?')) return;
-              try {
-                await deleteNote(selectedId);
-                await refresh();
-                closeEditor();
-              } catch (e:any) {
-                err = e?.message || String(e);
-              }
-            }}>Delete</button>
-          </div>
-        </details>
+        <button class="trash" type="button" on:click={async () => {
+          if (!selectedId) return;
+          if (!confirm('Delete this note?')) return;
+          try {
+            await deleteNote(selectedId);
+            await refresh();
+            closeEditor();
+          } catch (e:any) {
+            err = e?.message || String(e);
+          }
+        }}>Delete</button>
       </div>
 
       <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
@@ -318,15 +318,10 @@
   .back { display:none; background: transparent; border: 1px solid var(--border); color: var(--text); }
 
   .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
-  .dots { letter-spacing: 2px; }
+  /* dots (removed) */
 
-  details.menu { position: relative; }
-  details.menu > summary { list-style: none; cursor: pointer; }
-  details.menu > summary::-webkit-details-marker { display:none; }
-  .menuPanel { position: absolute; right: 0; margin-top: 8px; min-width: 180px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 6px; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-  .menuItem { width: 100%; text-align: left; padding: 10px 10px; border-radius: 10px; background: transparent; border: 1px solid transparent; color: var(--text); font-weight: 800; }
-  .menuItem:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
-  .menuItem.danger { color: var(--danger); }
+  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
+  .trash:hover { filter: brightness(1.08); }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
 
   .share { margin-top: 10px; }
