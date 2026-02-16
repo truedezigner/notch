@@ -176,16 +176,59 @@
 
         {#if expandedId === t.id}
           <div class="editor">
-            <div class="dangerRow">
-              <button class="trash" type="button" on:click={async () => {
-                if (!confirm('Delete this todo?')) return;
-                try {
-                  await deleteTodo(t.id);
-                  expandedId = null;
-                  await refresh();
-                } catch (err2:any) { err = err2?.message || String(err2); }
-              }}>Delete</button>
+            <div class="toolbar">
+              <details class="menu">
+                <summary class="iconBtn" aria-label="Todo options" title="Options">
+                  <span class="dots">···</span>
+                </summary>
+                <div class="menuPanel">
+                  <button type="button" class="menuItem" on:click={async ()=>{
+                    const base = location.pathname.includes('/app/') ? '/app/' : '/';
+                    const url = `${location.origin}${base}todos/${encodeURIComponent(t.id)}`;
+                    try { await navigator.clipboard.writeText(url); }
+                    catch (e:any) { err = e?.message || String(e); }
+                  }}>Copy link</button>
+
+                  <button type="button" class="menuItem danger" on:click={async () => {
+                    if (!confirm('Delete this todo?')) return;
+                    try {
+                      await deleteTodo(t.id);
+                      expandedId = null;
+                      await refresh();
+                    } catch (err2:any) { err = err2?.message || String(err2); }
+                  }}>Delete</button>
+                </div>
+              </details>
             </div>
+
+            <div class="field">
+              <label for={`title-${t.id}`}>Title</label>
+              <input id={`title-${t.id}`} value={t.title} on:change={async (e)=>{
+                const v = (e.currentTarget as HTMLInputElement).value;
+                try {
+                  const updated = await patchTodo(t.id, { title: v, if_version: t.version });
+                  todos = todos.map(x => x.id === updated.id ? updated : x);
+                } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+              }} />
+            </div>
+
+            <div class="field">
+              <label for={`move-${t.id}`}>List</label>
+              <select id={`move-${t.id}`} value={t.list_id || ''} on:change={async (e)=>{
+                const v = (e.currentTarget as HTMLSelectElement).value;
+                try {
+                  const updated = await patchTodo(t.id, { list_id: v || null, if_version: t.version });
+                  todos = todos.map(x => x.id === updated.id ? updated : x);
+                  // If moved away from current list, refresh the current list view.
+                  await refresh();
+                } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+              }}>
+                {#each lists as l}
+                  <option value={l.id}>{l.name}</option>
+                {/each}
+              </select>
+            </div>
+
             <div class="field">
               <label for={`assign-${t.id}`}>Assign</label>
               <select id={`assign-${t.id}`} value={t.assigned_to || ''} on:change={async (e) => {
@@ -276,9 +319,18 @@
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
   .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 14px; flex-wrap: wrap; }
-  .dangerRow { width: 100%; display:flex; justify-content:flex-end; }
-  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
-  .trash:hover { filter: brightness(1.08); }
+
+  .toolbar { width: 100%; display:flex; justify-content:flex-end; }
+  .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
+  .dots { letter-spacing: 2px; }
+
+  details.menu { position: relative; }
+  details.menu > summary { list-style: none; cursor: pointer; }
+  details.menu > summary::-webkit-details-marker { display:none; }
+  .menuPanel { position: absolute; right: 0; margin-top: 8px; min-width: 180px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 6px; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  .menuItem { width: 100%; text-align: left; padding: 10px 10px; border-radius: 10px; background: transparent; border: 1px solid transparent; color: var(--text); font-weight: 800; }
+  .menuItem:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
+  .menuItem.danger { color: var(--danger); }
   .field { display:flex; flex-direction:column; gap: 6px; }
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }

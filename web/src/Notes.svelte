@@ -98,6 +98,13 @@
     history.pushState({}, '', `${base}notes`);
   }
 
+  async function copyLink(id: string) {
+    const base = location.pathname.includes('/app/') ? '/app/' : '/';
+    const url = `${location.origin}${base}notes/${encodeURIComponent(id)}`;
+    try { await navigator.clipboard.writeText(url); }
+    catch (e:any) { err = e?.message || String(e); }
+  }
+
   function pick(n: Note) {
     selectedId = n.id;
     title = n.title;
@@ -231,17 +238,24 @@
           {#if saveStatus === 'error'}Save error{/if}
         </div>
         <button on:click={save} disabled={!selectedId || version===null || saveStatus==='saving'}>Save</button>
-        <button class="trash" type="button" on:click={async () => {
-          if (!selectedId) return;
-          if (!confirm('Delete this note?')) return;
-          try {
-            await deleteNote(selectedId);
-            await refresh();
-            closeEditor();
-          } catch (e:any) {
-            err = e?.message || String(e);
-          }
-        }}>Delete</button>
+
+        <details class="menu">
+          <summary class="iconBtn" aria-label="Note options" title="Options"><span class="dots">···</span></summary>
+          <div class="menuPanel">
+            <button type="button" class="menuItem" on:click={() => selectedId && copyLink(selectedId)}>Copy link</button>
+            <button type="button" class="menuItem danger" on:click={async () => {
+              if (!selectedId) return;
+              if (!confirm('Delete this note?')) return;
+              try {
+                await deleteNote(selectedId);
+                await refresh();
+                closeEditor();
+              } catch (e:any) {
+                err = e?.message || String(e);
+              }
+            }}>Delete</button>
+          </div>
+        </details>
       </div>
 
       <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
@@ -302,8 +316,17 @@
   .head .title { flex: 1; font-weight: 800; }
   .status { font-size: 12px; color: var(--muted); min-width: 70px; text-align: right; }
   .back { display:none; background: transparent; border: 1px solid var(--border); color: var(--text); }
-  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
-  .trash:hover { filter: brightness(1.08); }
+
+  .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
+  .dots { letter-spacing: 2px; }
+
+  details.menu { position: relative; }
+  details.menu > summary { list-style: none; cursor: pointer; }
+  details.menu > summary::-webkit-details-marker { display:none; }
+  .menuPanel { position: absolute; right: 0; margin-top: 8px; min-width: 180px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 6px; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  .menuItem { width: 100%; text-align: left; padding: 10px 10px; border-radius: 10px; background: transparent; border: 1px solid transparent; color: var(--text); font-weight: 800; }
+  .menuItem:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
+  .menuItem.danger { color: var(--danger); }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
 
   .share { margin-top: 10px; }
