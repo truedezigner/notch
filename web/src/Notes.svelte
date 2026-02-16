@@ -290,15 +290,40 @@
     .grid { grid-template-columns: 1fr; }
     /* Mobile-first: list view OR editor view (full-screen) */
     .grid.editing .sidebar { display:none; }
-    .grid.editing .editor { padding: 0; border: none; background: transparent; }
-    .grid.editing .head { position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+    .grid.editing .editor { padding: 0; border: none; background: transparent; overflow-x: hidden; }
+
+    /* Make the header fit small screens (avoid horizontal overflow) */
+    .grid.editing .head {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      padding: 10px 0;
+      z-index: 2;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     .grid.editing .back { display:inline-flex; }
+
+    .grid.editing .head .title {
+      flex: 1 1 100%;
+      min-width: 0;
+      order: 2;
+    }
+
+    .grid.editing .status { display:none; }
+
+    .grid.editing .head button {
+      padding: 8px 10px;
+    }
+
+    .body { max-width: 100%; box-sizing: border-box; }
   }
 
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   h3 { margin: 0; }
-  select, input, textarea { padding: 10px; border-radius: 10px; }
+  select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
 
   .addRow { display:flex; gap:8px; margin-top: 10px; }
@@ -313,7 +338,7 @@
 
   .editor { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .head { display:flex; gap:10px; align-items:center; }
-  .head .title { flex: 1; font-weight: 800; }
+  .head .title { flex: 1; font-weight: 800; min-width: 0; }
   .status { font-size: 12px; color: var(--muted); min-width: 70px; text-align: right; }
   .back { display:none; background: transparent; border: 1px solid var(--border); color: var(--text); }
 
