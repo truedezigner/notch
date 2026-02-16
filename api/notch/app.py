@@ -9,9 +9,13 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import asyncio
+
 from .auth import Principal, hash_password, issue_session, require_principal, verify_password
-from .db import connect, tx
+from .db import tx
 from .settings import settings
+from . import todos as todos_api
+from .scheduler import run_once
 
 
 def now() -> int:
@@ -31,6 +35,21 @@ async def _startup():
     from .schema import apply_schema
 
     apply_schema()
+
+    # Background scheduler loop (reminders -> ntfy)
+    async def _loop():
+        # tiny delay so app finishes booting
+        await asyncio.sleep(0.25)
+        while True:
+            try:
+                await run_once()
+            except Exception:
+                # best-effort; logs will show details via uvicorn
+                pass
+            await asyncio.sleep(max(0.25, float(settings.SCHEDULER_POLL_SECONDS)))
+
+    if settings.SCHEDULER_ENABLED:
+        asyncio.create_task(_loop())
 
 
 @app.get("/health")
@@ -69,6 +88,37 @@ async def list_users(p: Principal = Depends(require_principal)):
     with tx() as con:
         rows = con.execute("SELECT id,handle,display_name FROM users ORDER BY handle").fetchall()
     return {"ok": True, "users": [dict(r) for r in rows]}
+
+
+# --- Todos ---
+
+@app.post("/api/todos")
+async def create_todo(payload: dict, p: Principal = Depends(require_principal)):
+    todo = todos_api.create_todo(p=p, payload=payload)
+    return {"ok": True, "todo": todo}
+
+
+@app.get("/api/todos")
+async def list_todos(
+    query: str | None = None,
+    include_done: int = 0,
+    limit: int = 200,
+    p: Principal = Depends(require_principal),
+):
+    todos = todos_api.list_todos(p=p, query=query, include_done=bool(include_done), limit=limit)
+    return {"ok": True, "todos": todos}
+
+
+@app.get("/api/todos/{todo_id}")
+async def get_todo(todo_id: str, p: Principal = Depends(require_principal)):
+    todo = todos_api.get_todo(p=p, todo_id=todo_id)
+    return {"ok": True, "todo": todo}
+
+
+@app.patch("/api/todos/{todo_id}")
+async def patch_todo(todo_id: str, payload: dict, p: Principal = Depends(require_principal)):
+    todo = todos_api.patch_todo(p=p, todo_id=todo_id, payload=payload)
+    return {"ok": True, "todo": todo}
 
 
 @app.post("/api/admin/bootstrap")
