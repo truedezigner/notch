@@ -1,6 +1,7 @@
 export type User = { id: string; handle: string; display_name: string };
 export type Todo = {
   id: string;
+  list_id?: string | null;
   title: string;
   notes?: string | null;
   done: boolean;
@@ -56,13 +57,30 @@ export async function listUsers(): Promise<User[]> {
   return j.users;
 }
 
-export async function listTodos(includeDone = false): Promise<Todo[]> {
-  const j = await req(`/api/todos?include_done=${includeDone ? 1 : 0}`);
+export type TodoList = { id: string; name: string; created_by: string; shared_with: string[]; created_at: number; updated_at: number };
+
+export async function listLists(): Promise<TodoList[]> {
+  const j = await req('/api/lists');
+  return j.lists;
+}
+
+export async function createList(name: string): Promise<TodoList> {
+  const j = await req('/api/lists', { method: 'POST', body: JSON.stringify({ name }) });
+  return j.list;
+}
+
+export async function listTodos(includeDone = false, listId?: string | null): Promise<Todo[]> {
+  const qs = new URLSearchParams();
+  qs.set('include_done', includeDone ? '1' : '0');
+  if (listId) qs.set('list_id', listId);
+  const j = await req(`/api/todos?${qs.toString()}`);
   return j.todos;
 }
 
-export async function createTodo(title: string, notes?: string): Promise<Todo> {
-  const j = await req('/api/todos', { method: 'POST', body: JSON.stringify({ title, notes }) });
+export async function createTodo(title: string, notes?: string, listId?: string | null): Promise<Todo> {
+  const body: any = { title, notes };
+  if (listId) body.list_id = listId;
+  const j = await req('/api/todos', { method: 'POST', body: JSON.stringify(body) });
   return j.todo;
 }
 

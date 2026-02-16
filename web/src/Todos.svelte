@@ -1,15 +1,19 @@
 <script lang="ts">
-  import type { Todo } from './api';
-  import { createTodo, listTodos, patchTodo, setToken } from './api';
+  import type { Todo, TodoList } from './api';
+  import { createTodo, createList, listLists, listTodos, patchTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
 
   let todos: Todo[] = [];
   let users: User[] = [];
+  let lists: TodoList[] = [];
+  let activeListId: string | null = null;
+
   let loading = true;
   let err: string | null = null;
 
+  let newListName = '';
   let newTitle = '';
   let newNotes = '';
   let includeDone = false;
@@ -64,9 +68,10 @@
     loading = true;
     err = null;
     try {
-      // load users first for assignee labels
       users = await listUsers();
-      todos = await listTodos(includeDone);
+      lists = await listLists();
+      if (!activeListId && lists.length) activeListId = lists[0].id;
+      todos = await listTodos(includeDone, activeListId);
       if (initialExpandedId) {
         const found = todos.find(t => t.id === initialExpandedId);
         if (found) expandedId = initialExpandedId;
@@ -78,11 +83,25 @@
     }
   }
 
+  async function addList() {
+    const name = newListName.trim();
+    if (!name) return;
+    try {
+      const lst = await createList(name);
+      lists = [...lists, lst].sort((a,b)=>a.name.localeCompare(b.name));
+      activeListId = lst.id;
+      newListName = '';
+      await refresh();
+    } catch (e: any) {
+      err = e?.message || String(e);
+    }
+  }
+
   async function add() {
     const title = newTitle.trim();
     if (!title) return;
     try {
-      const t = await createTodo(title, newNotes.trim() || undefined);
+      const t = await createTodo(title, newNotes.trim() || undefined, activeListId);
       todos = [t, ...todos];
       newTitle = '';
       newNotes = '';
@@ -113,11 +132,23 @@
 </script>
 
 <div class="top">
-  <h3>Todos</h3>
+  <div class="topLeft">
+    <h3>Todos</h3>
+    <select class="listSel" bind:value={activeListId} on:change={refresh}>
+      {#each lists as l}
+        <option value={l.id}>{l.name}</option>
+      {/each}
+    </select>
+  </div>
   <div class="topRight">
     <label class="toggle"><input type="checkbox" bind:checked={includeDone} on:change={refresh} /> Show done</label>
     <button class="logout" on:click={logout} title="Log out">Log out</button>
   </div>
+</div>
+
+<div class="addList">
+  <input bind:value={newListName} placeholder="New list…" on:keydown={(e) => e.key === 'Enter' && addList()} />
+  <button on:click={addList} disabled={!newListName.trim()}>Add list</button>
 </div>
 
 <div class="add">
@@ -164,6 +195,9 @@
           </div>
         {/if}
 
+        {#if t.due_at}
+          <div class="meta">Due: {fmtTime(t.due_at)}</div>
+        {/if}
         {#if t.remind_at}
           <div class="meta">Remind: {fmtTime(t.remind_at)}</div>
         {/if}
@@ -187,6 +221,38 @@
             </div>
 
             <div class="field">
+              <div class="label">Shared with</div>
+              <div class="shareBox">
+                {#each users as u}
+                  <label class="shareRow">
+                    <input type="checkbox" checked={t.shared_with?.includes(u.id)} on:change={async (e) => {
+                      const checked = (e.currentTarget as HTMLInputElement).checked;
+                      const next = new Set(t.shared_with || []);
+                      if (checked) next.add(u.id); else next.delete(u.id);
+                      try {
+                        const updated = await patchTodo(t.id, { shared_with: Array.from(next), if_version: t.version });
+                        todos = todos.map(x => x.id === updated.id ? updated : x);
+                      } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+                    }} />
+                    <span>{u.display_name}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+
+            <div class="field">
+              <label for={`due-${t.id}`}>Due</label>
+              <input id={`due-${t.id}`} type="datetime-local" value={toLocalInput(t.due_at)} on:change={async (e) => {
+                const v = (e.currentTarget as HTMLInputElement).value;
+                const ts = fromLocalInput(v);
+                try {
+                  const updated = await patchTodo(t.id, { due_at: ts, if_version: t.version });
+                  todos = todos.map(x => x.id === updated.id ? updated : x);
+                } catch (err2:any) { err = err2?.message || String(err2); await refresh(); }
+              }} />
+            </div>
+
+            <div class="field">
               <label for={`remind-${t.id}`}>Remind</label>
               <input id={`remind-${t.id}`} type="datetime-local" value={toLocalInput(t.remind_at)} on:change={async (e) => {
                 const v = (e.currentTarget as HTMLInputElement).value;
@@ -205,12 +271,16 @@
 {/if}
 
 <style>
-  .top { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap: 10px; flex-wrap: wrap; }
+  .topLeft { display:flex; align-items:center; gap: 10px; }
   .topRight { display:flex; align-items:center; gap:10px; }
+  .listSel { padding: 8px 10px; border-radius: 10px; }
   .toggle { font-size: 12px; color: var(--muted); display:flex; gap:6px; align-items:center; }
   .logout { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-weight: 800; color: var(--text); }
   .logout:hover { filter: brightness(1.08); }
-  .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+  .addList { display:flex; gap:8px; align-items:center; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
+.addList input { flex: 1; }
+.add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
   input, textarea { font: inherit; padding: 10px; border-radius: 10px; }
   textarea { min-height: 70px; resize: vertical; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
@@ -224,9 +294,12 @@
   .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; color: var(--text); }
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
-  .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 10px; flex-wrap: wrap; }
+  .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 14px; flex-wrap: wrap; }
   .field { display:flex; flex-direction:column; gap: 6px; }
+  .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
+  .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }
   .field label { font-size: 12px; color: var(--muted); }
+  .label { font-size: 12px; color: var(--muted); }
   select { padding: 10px; border-radius: 10px; min-width: 180px; }
   .done { text-decoration: line-through; color: var(--muted); }
   .notes { margin-left: 28px; margin-top: 6px; color: var(--text); font-size: 14px; opacity: 0.9; }

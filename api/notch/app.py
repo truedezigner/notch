@@ -15,6 +15,7 @@ from .auth import Principal, hash_password, issue_session, require_principal, ve
 from .db import tx
 from .settings import settings
 from . import todos as todos_api
+from . import lists as lists_api
 from .scheduler import run_once
 
 
@@ -90,6 +91,20 @@ async def list_users(p: Principal = Depends(require_principal)):
     return {"ok": True, "users": [dict(r) for r in rows]}
 
 
+# --- Todo lists ---
+
+@app.get("/api/lists")
+async def list_lists(p: Principal = Depends(require_principal)):
+    lists = lists_api.list_lists(p=p)
+    return {"ok": True, "lists": lists}
+
+
+@app.post("/api/lists")
+async def create_list(payload: dict, p: Principal = Depends(require_principal)):
+    lst = lists_api.create_list(p=p, payload=payload)
+    return {"ok": True, "list": lst}
+
+
 # --- Todos ---
 
 @app.post("/api/todos")
@@ -102,10 +117,11 @@ async def create_todo(payload: dict, p: Principal = Depends(require_principal)):
 async def list_todos(
     query: str | None = None,
     include_done: int = 0,
+    list_id: str | None = None,
     limit: int = 200,
     p: Principal = Depends(require_principal),
 ):
-    todos = todos_api.list_todos(p=p, query=query, include_done=bool(include_done), limit=limit)
+    todos = todos_api.list_todos(p=p, query=query, include_done=bool(include_done), list_id=list_id, limit=limit)
     return {"ok": True, "todos": todos}
 
 

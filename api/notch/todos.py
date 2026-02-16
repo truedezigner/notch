@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from .auth import Principal
 from .db import tx
+from .lists import ensure_default_list
 
 
 def now() -> int:
@@ -42,6 +43,7 @@ def create_todo(*, p: Principal, payload: dict) -> dict[str, Any]:
     notes = (payload.get("notes") or "").strip() or None
     due_at = payload.get("due_at")
     remind_at = payload.get("remind_at")
+    list_id = payload.get("list_id")
     assigned_to = payload.get("assigned_to")
     shared_with = payload.get("shared_with")
 
@@ -69,21 +71,26 @@ def create_todo(*, p: Principal, payload: dict) -> dict[str, Any]:
     else:
         raise HTTPException(status_code=400, detail="shared_with must be a list")
 
+    # Default list = Inbox
+    if not list_id:
+        inbox = ensure_default_list(p.user["id"])
+        list_id = inbox["id"]
+
     tid = str(uuid.uuid4())
     t = now()
     with tx() as con:
         con.execute(
             """
-            INSERT INTO todos(id,title,notes,done,due_at,remind_at,remind_sent_at,assigned_to,shared_with,created_by,created_at,updated_at,version)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO todos(id,list_id,title,notes,done,due_at,remind_at,remind_sent_at,assigned_to,shared_with,created_by,created_at,updated_at,version)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (tid, title, notes, 0, due_at_i, remind_at_i, None, assigned_to, shared_with_s, p.user["id"], t, t, 1),
+            (tid, str(list_id), title, notes, 0, due_at_i, remind_at_i, None, assigned_to, shared_with_s, p.user["id"], t, t, 1),
         )
         row = con.execute("SELECT * FROM todos WHERE id=?", (tid,)).fetchone()
     return _row_to_todo(dict(row))
 
 
-def list_todos(*, p: Principal, query: str | None, include_done: bool = False, limit: int = 200) -> list[dict[str, Any]]:
+def list_todos(*, p: Principal, query: str | None, include_done: bool = False, list_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")
 
@@ -95,11 +102,20 @@ def list_todos(*, p: Principal, query: str | None, include_done: bool = False, l
     if not include_done:
         where.append("done=0")
 
+    if list_id:
+        where.append("list_id=?")
+        params.append(str(list_id))
+
     if q:
         where.append("(lower(title) LIKE ? OR lower(COALESCE(notes,'')) LIKE ?)")
         params.extend([f"%{q}%", f"%{q}%"])
 
-    sql = "SELECT * FROM todos WHERE " + " AND ".join(where) + " ORDER BY done ASC, COALESCE(remind_at, 2147483647) ASC, updated_at DESC LIMIT ?"
+    # Sort: undone first, then due date, then remind time.
+    sql = (
+        "SELECT * FROM todos WHERE "
+        + " AND ".join(where)
+        + " ORDER BY done ASC, COALESCE(due_at, 2147483647) ASC, COALESCE(remind_at, 2147483647) ASC, updated_at DESC LIMIT ?"
+    )
     params.append(int(limit))
 
     with tx() as con:
@@ -211,6 +227,7 @@ def _can_see(user_id: str, todo: dict) -> bool:
 def _row_to_todo(row: dict) -> dict[str, Any]:
     return {
         "id": row.get("id"),
+        "list_id": row.get("list_id"),
         "title": row.get("title"),
         "notes": row.get("notes"),
         "done": bool(row.get("done")),

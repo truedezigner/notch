@@ -17,8 +17,20 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_seen_at INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS todo_lists (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  shared_with TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_todo_lists_owner ON todo_lists(created_by);
+
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
+  list_id TEXT,
   title TEXT NOT NULL,
   notes TEXT,
   done INTEGER NOT NULL DEFAULT 0,
@@ -36,8 +48,20 @@ CREATE TABLE IF NOT EXISTS todos (
 CREATE INDEX IF NOT EXISTS idx_todos_due ON todos(due_at);
 CREATE INDEX IF NOT EXISTS idx_todos_remind ON todos(remind_at, remind_sent_at, done);
 
+CREATE TABLE IF NOT EXISTS note_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  shared_with TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_note_groups_owner ON note_groups(created_by);
+
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
+  group_id TEXT,
   title TEXT NOT NULL,
   body_md TEXT NOT NULL,
   shared_with TEXT NOT NULL DEFAULT '[]',
