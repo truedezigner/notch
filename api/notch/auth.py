@@ -11,7 +11,8 @@ from passlib.context import CryptContext
 from .db import tx
 from .settings import settings
 
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use PBKDF2 (pure python) to avoid bcrypt backend/version issues inside slim containers.
+pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def now() -> int:
