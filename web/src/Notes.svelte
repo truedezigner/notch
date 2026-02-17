@@ -567,15 +567,9 @@
           {#if saveStatus === 'saved'}Saved{/if}
           {#if saveStatus === 'error'}Save error{/if}
         </div>
-        <button class="iconBtn" type="button" title="Copy internal link" aria-label="Copy internal link" on:click={() => selectedId && copyLink(selectedId)}>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-            <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z" />
-          </svg>
-        </button>
-
         <button class="iconBtn" type="button" title="Create public editable link" aria-label="Create public editable link" on:click={() => selectedId && openShareDlg(selectedId)}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-            <path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.92 9h-3.17a15.6 15.6 0 0 0-1.02-5.02A8.02 8.02 0 0 1 18.92 11ZM12 4c.76 0 1.93 1.83 2.52 5H9.48C10.07 5.83 11.24 4 12 4ZM5.08 13h3.17c.16 1.86.55 3.58 1.02 5.02A8.02 8.02 0 0 1 5.08 13Zm3.17-2H5.08a8.02 8.02 0 0 1 4.19-5.02c-.47 1.44-.86 3.16-1.02 5.02ZM12 20c-.76 0-1.93-1.83-2.52-5h5.04C13.93 18.17 12.76 20 12 20Zm3.73-1.98c.47-1.44.86-3.16 1.02-5.02h3.17a8.02 8.02 0 0 1-4.19 5.02ZM9.25 11h5.5c.05.64.08 1.31.08 2s-.03 1.36-.08 2h-5.5a18.8 18.8 0 0 1-.08-2c0-.69.03-1.36.08-2Z" />
+            <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z" />
           </svg>
         </button>
 
