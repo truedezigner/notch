@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import type { User } from './api';
   import { listUsers } from './api';
   import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup } from './notes_api';
@@ -25,6 +26,11 @@
   let sharedWith: string[] = [];
   let version: number | null = null;
 
+  let titleEl: HTMLInputElement | null = null;
+  let bodyEl: HTMLTextAreaElement | null = null;
+  let newNoteEl: HTMLInputElement | null = null;
+  let newGroupEl: HTMLInputElement | null = null;
+
   let newGroupName = '';
   let newTitle = '';
   let err: string | null = null;
@@ -43,6 +49,26 @@
   function userLabel(id: string) {
     const u = users.find(u => u.id === id);
     return u ? u.display_name : id;
+  }
+
+  function snippet(md: string) {
+    const s = String(md || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '—';
+    return s.length > 44 ? s.slice(0, 44) + '…' : s;
+  }
+
+  function fmtRel(ts: number) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const days = Math.floor(h / 24);
+    if (days < 14) return `${days}d`;
+    return d.toLocaleDateString();
   }
 
   async function refresh() {
@@ -76,7 +102,7 @@
           }
           found = notes.find(x => x.id === initialSelectedId) || n;
         }
-        if (found) pick(found);
+        if (found) await pick(found);
       }
     } catch (e:any) {
       err = e?.message || String(e);
@@ -117,7 +143,7 @@
     catch (e:any) { err = e?.message || String(e); }
   }
 
-  function pick(n: Note) {
+  async function pick(n: Note) {
     selectedId = n.id;
     title = n.title;
     body = n.body_md || '';
@@ -129,6 +155,10 @@
 
     const base = location.pathname.includes('/app/') ? '/app/' : '/';
     history.pushState({}, '', `${base}notes/${encodeURIComponent(n.id)}`);
+
+    await tick();
+    // On mobile, jump into writing.
+    (bodyEl || titleEl)?.focus();
   }
 
   async function addGroup() {
@@ -150,7 +180,7 @@
       const n = await createNote(t, activeGroupId || null);
       notes = [n, ...notes];
       newTitle = '';
-      pick(n);
+      await pick(n);
     } catch (e:any) { err = e?.message || String(e); }
   }
 
@@ -214,13 +244,23 @@
         </svg>
       </button>
 
-      <button class="iconBtn" type="button" title="New note" aria-label="New note" on:click={() => { showNewNote = !showNewNote; showNewGroup = false; }}>
+      <button class="iconBtn" type="button" title="New note" aria-label="New note" on:click={async () => {
+        showNewNote = !showNewNote;
+        showNewGroup = false;
+        await tick();
+        newNoteEl?.focus();
+      }}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
           <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z"/>
         </svg>
       </button>
 
-      <button class="iconBtn" type="button" title="New group" aria-label="New group" on:click={() => { showNewGroup = !showNewGroup; showNewNote = false; }}>
+      <button class="iconBtn" type="button" title="New group" aria-label="New group" on:click={async () => {
+        showNewGroup = !showNewGroup;
+        showNewNote = false;
+        await tick();
+        newGroupEl?.focus();
+      }}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
           <path fill="currentColor" d="M10 6h11v2H10V6ZM3 6h5v5H3V6Zm7 10h11v2H10v-2ZM3 16h5v5H3v-5Z"/>
         </svg>
@@ -236,14 +276,14 @@
     <div class="controls">
       {#if showNewGroup}
         <div class="addRow">
-          <input bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
+          <input bind:this={newGroupEl} bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
           <button on:click={addGroup} disabled={!newGroupName.trim()}>Add group</button>
         </div>
       {/if}
 
       {#if showNewNote}
         <div class="addRow">
-          <input bind:value={newTitle} placeholder="New note…" on:keydown={(e)=>e.key==='Enter'&&addNote()} />
+          <input bind:this={newNoteEl} bind:value={newTitle} placeholder="New note…" on:keydown={(e)=>e.key==='Enter'&&addNote()} />
           <button on:click={addNote} disabled={!newTitle.trim()}>Add</button>
         </div>
       {/if}
@@ -286,12 +326,25 @@
 
     {#if loading}
       <div class="hint">Loading…</div>
+    {:else if !notes.length}
+      <div class="hint">
+        {#if q.trim()}
+          No results.
+        {:else}
+          No notes yet.
+        {/if}
+      </div>
     {:else}
       <ul class="list">
         {#each notes as n (n.id)}
           <li>
-            <button type="button" class:selected={selectedId===n.id} on:click={() => pick(n)}>
-              {n.title}
+            <button type="button" class:selected={selectedId===n.id} on:click={() => void pick(n)}>
+              <div class="t">{n.title}</div>
+              <div class="sub">
+                <span class="snip">{snippet(n.body_md)}</span>
+                <span class="dot">•</span>
+                <span class="ts">{fmtRel(n.updated_at)}</span>
+              </div>
             </button>
           </li>
         {/each}
@@ -303,7 +356,7 @@
     {#if selectedId}
       <div class="head">
         <button class="back" type="button" on:click={closeEditor}>Back</button>
-        <input class="title" bind:value={title} placeholder="Title" on:input={markDirty} />
+        <input class="title" bind:this={titleEl} bind:value={title} placeholder="Title" on:input={markDirty} />
         <div class="status">
           {#if saveStatus === 'saving'}Saving…{/if}
           {#if saveStatus === 'dirty'}Unsaved{/if}
@@ -352,7 +405,7 @@
         </div>
       </div>
 
-      <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
+      <textarea class="body" bind:this={bodyEl} bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
 
       <details class="noteShare" open={groupSharedWith.length === 0}>
         <summary class="noteShareSummary">
@@ -451,8 +504,13 @@
   .searchRow input { width: 100%; }
 
   .list { list-style:none; padding:0; margin: 12px 0 0; display:flex; flex-direction:column; gap:8px; }
-  .list button { width:100%; text-align:left; background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .list button { width:100%; text-align:left; background: transparent; color: var(--text); border: 1px solid var(--border); padding: 10px 10px; }
   .list button.selected { outline: 2px solid rgba(255,255,255,0.18); }
+  .t { font-weight: 800; }
+  .sub { margin-top: 4px; display:flex; gap:6px; align-items:center; color: var(--muted); font-size: 12px; }
+  .snip { flex: 1; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { opacity: 0.7; }
+  .ts { white-space: nowrap; }
 
   .editor { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .head { display:flex; gap:10px; align-items:center; }
