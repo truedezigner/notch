@@ -1,8 +1,30 @@
 # Notch
 
-Self-hosted notes + todos with per-user notifications via **ntfy**.
+LAN-first notes + todos with per-user notifications via **ntfy**.
 
-## Dev (Zorin-96)
+- Web UI: `/app/` (Svelte)
+- API: `/api/*` (FastAPI)
+- Reminders: background scheduler loop in the Notch API process
+
+## Features (MVP+)
+
+### Todos
+- Multiple lists + “All” + “Trash”
+- Title-only reminders (no description)
+- Assign, share-with, due, remind
+- Deep links: `/app/todos/:id`
+- Soft delete + undo
+
+### Notes
+- Groups + “All” + “Trash”
+- Markdown editor + Preview
+- Autosave
+- Group-level share + note-level share
+- Public editable share links (anyone-with-link) with optional expiry
+- Deep links: `/app/notes/:id`
+- Soft delete + undo
+
+## Local dev (Zorin-96)
 
 Backend:
 ```bash
@@ -17,6 +39,8 @@ npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
 ## Bootstrap first user
+
+Creates the first user if none exist (admin = first created user):
 
 ```bash
 curl -sS -X POST http://localhost:8080/api/admin/bootstrap \
@@ -36,11 +60,21 @@ This repo includes a GitHub Actions workflow that builds & pushes to GHCR on:
 - pushes to `main` (tag: `main`)
 - tags like `v0.1.0`
 
-After the first run, images will appear at:
+Images:
 - `ghcr.io/truedezigner/notch:<tag>`
 
-## Deploy
+## Deploy (Portainer)
 
-See Portainer stacks in `/home/legend/.openclaw/workspace`:
-- `portainer-ntfy.yml`
-- `portainer-notes-todos.yml` (set image to a pinned GHCR tag)
+Workspace stack files:
+- Notch: `/home/legend/.openclaw/workspace/portainer-notes-todos.yml`
+- ntfy:
+  - **MVP open-LAN:** `/home/legend/.openclaw/workspace/portainer-ntfy-open.yml`
+  - (Optional later) hardened/auth config
+
+Default LAN ports:
+- ntfy: `http://192.168.29.228:8082`
+- Notch: `http://192.168.29.228:8083/app/`
+
+## Notes on ntfy auth
+
+If ntfy is configured with `deny-all` by default, Notch must publish with an Authorization header. The current MVP path is to run ntfy open on LAN first, then harden later.
