@@ -278,29 +278,42 @@
     catch (e:any) { err = e?.message || String(e); }
   }
 
-  async function sharePublic(id: string) {
-    // Ask for optional expiry. Blank = never.
-    const exp = prompt('Public link expiry in hours (blank = never):', '');
+  let shareDlgOpen = false;
+  let shareNoteId: string | null = null;
+  let shareNeverExpires = true;
+  let shareHours = '24';
+  let shareUrl: string | null = null;
+
+  function openShareDlg(id: string) {
+    shareNoteId = id;
+    shareDlgOpen = true;
+    shareUrl = null;
+    shareNeverExpires = true;
+    shareHours = '24';
+  }
+
+  async function createPublicShare() {
+    if (!shareNoteId) return;
+    err = null;
+
     let expires_in_seconds: number | null | undefined = undefined;
-    if (exp !== null) {
-      const s = exp.trim();
-      if (!s) expires_in_seconds = null;
-      else {
-        const hours = Number(s);
-        if (!Number.isFinite(hours) || hours <= 0) {
-          err = 'Expiry must be a positive number of hours.';
-          return;
-        }
-        expires_in_seconds = Math.floor(hours * 3600);
-      }
+    if (shareNeverExpires) {
+      expires_in_seconds = null;
     } else {
-      return;
+      const hours = Number(String(shareHours || '').trim());
+      if (!Number.isFinite(hours) || hours <= 0) {
+        err = 'Expiry must be a positive number of hours.';
+        return;
+      }
+      expires_in_seconds = Math.floor(hours * 3600);
     }
 
     try {
-      const r = await createNoteShare(id, { can_edit: true, expires_in_seconds });
-      const url = `${location.origin}${r.url}`;
-      await copyText(url);
+      const r = await createNoteShare(shareNoteId, { can_edit: true, expires_in_seconds });
+      shareUrl = `${location.origin}${r.url}`;
+      await copyText(shareUrl);
+      // Nice UX: open it too, so you can confirm it doesn't require login.
+      window.open(shareUrl, '_blank', 'noopener');
     } catch (e:any) {
       err = e?.message || String(e);
     }
@@ -560,7 +573,7 @@
           </svg>
         </button>
 
-        <button class="iconBtn" type="button" title="Create public editable link" aria-label="Create public editable link" on:click={() => selectedId && sharePublic(selectedId)}>
+        <button class="iconBtn" type="button" title="Create public editable link" aria-label="Create public editable link" on:click={() => selectedId && openShareDlg(selectedId)}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.92 9h-3.17a15.6 15.6 0 0 0-1.02-5.02A8.02 8.02 0 0 1 18.92 11ZM12 4c.76 0 1.93 1.83 2.52 5H9.48C10.07 5.83 11.24 4 12 4ZM5.08 13h3.17c.16 1.86.55 3.58 1.02 5.02A8.02 8.02 0 0 1 5.08 13Zm3.17-2H5.08a8.02 8.02 0 0 1 4.19-5.02c-.47 1.44-.86 3.16-1.02 5.02ZM12 20c-.76 0-1.93-1.83-2.52-5h5.04C13.93 18.17 12.76 20 12 20Zm3.73-1.98c.47-1.44.86-3.16 1.02-5.02h3.17a8.02 8.02 0 0 1-4.19 5.02ZM9.25 11h5.5c.05.64.08 1.31.08 2s-.03 1.36-.08 2h-5.5a18.8 18.8 0 0 1-.08-2c0-.69.03-1.36.08-2Z" />
           </svg>
@@ -666,6 +679,49 @@
     {/if}
   </div>
 </div>
+
+{#if shareDlgOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="modalOverlay" role="presentation" on:click={() => { shareDlgOpen = false; }}>
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="modal" role="dialog" tabindex="-1" aria-modal="true" aria-label="Public link" on:click|stopPropagation>
+      <div class="modalHead">
+        <div class="modalTitle">Public link</div>
+        <button class="iconBtn" type="button" aria-label="Close" title="Close" on:click={() => { shareDlgOpen = false; }}>✕</button>
+      </div>
+
+      <div class="hint">Anyone with the link can edit. Link autosaves.</div>
+
+      <label class="row2">
+        <input type="checkbox" bind:checked={shareNeverExpires} />
+        <span>Never expires</span>
+      </label>
+
+      {#if !shareNeverExpires}
+        <div class="row3">
+          <label for="exp">Expires in (hours)</label>
+          <input id="exp" inputmode="numeric" bind:value={shareHours} />
+        </div>
+      {/if}
+
+      <div class="actions">
+        <button on:click={createPublicShare}>Create link</button>
+        <button class="btnGhost" on:click={() => { shareDlgOpen = false; }}>Cancel</button>
+      </div>
+
+      {#if shareUrl}
+        <div class="row3" style="margin-top: 10px;">
+          <label for="shareurl">Link</label>
+          <input id="shareurl" value={shareUrl} readonly />
+        </div>
+        <div class="actions" style="margin-top: 10px;">
+          <button class="btnGhost" on:click={() => shareUrl && copyText(shareUrl)}>Copy</button>
+          <button class="btnGhost" on:click={() => shareUrl && window.open(shareUrl, '_blank', 'noopener')}>Open</button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   .grid { display:grid; grid-template-columns: 280px 1fr; gap: 12px; }
@@ -777,4 +833,14 @@
   .err { margin-top: 10px; color: var(--danger); font-size: 13px; }
   .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 20px; }
+
+  .modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding: 14px; z-index: 50; }
+  .modal { width: min(520px, 100%); border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 12px; }
+  .modalHead { display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+  .modalTitle { font-weight: 900; }
+  .row2 { display:flex; gap: 10px; align-items:center; margin-top: 10px; color: var(--text); }
+  .row3 { display:flex; flex-direction:column; gap: 6px; margin-top: 10px; }
+  .row3 label { font-size: 12px; color: var(--muted); }
+  .actions { display:flex; gap: 8px; margin-top: 12px; }
+  .btnGhost { background: transparent; border: 1px solid var(--border); color: var(--text); }
 </style>
