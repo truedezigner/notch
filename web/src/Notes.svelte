@@ -18,6 +18,11 @@
 
   let groupSharedWith: string[] = [];
 
+  function groupLabel(id?: string | null) {
+    if (!id) return '';
+    const g = groups.find(x => x.id === id);
+    return g ? g.name : '';
+  }
   let q = '';
 
   let selectedId: string | null = null;
@@ -342,6 +347,10 @@
               <div class="t">{n.title}</div>
               <div class="sub">
                 <span class="snip">{snippet(n.body_md)}</span>
+                {#if !activeGroupId && n.group_id}
+                  <span class="dot">•</span>
+                  <span class="pill2">{groupLabel(n.group_id)}</span>
+                {/if}
                 <span class="dot">•</span>
                 <span class="ts">{fmtRel(n.updated_at)}</span>
               </div>
@@ -507,10 +516,11 @@
   .list button { width:100%; text-align:left; background: transparent; color: var(--text); border: 1px solid var(--border); padding: 10px 10px; }
   .list button.selected { outline: 2px solid rgba(255,255,255,0.18); }
   .t { font-weight: 800; }
-  .sub { margin-top: 4px; display:flex; gap:6px; align-items:center; color: var(--muted); font-size: 12px; }
-  .snip { flex: 1; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { margin-top: 4px; display:flex; gap:6px; align-items:center; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .snip { flex: 1; min-width: 120px; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dot { opacity: 0.7; }
   .ts { white-space: nowrap; }
+  .pill2 { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; color: var(--muted); }
 
   .editor { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .head { display:flex; gap:10px; align-items:center; }

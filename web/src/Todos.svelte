@@ -20,6 +20,12 @@
   export let initialExpandedId: string | null = null;
   let expandedId: string | null = null;
 
+  function listLabel(id?: string | null) {
+    if (!id) return '';
+    const l = lists.find(x => x.id === id);
+    return l ? l.name : '';
+  }
+
   function fmtTime(ts?: number | null) {
     if (!ts) return '';
     const d = new Date(ts * 1000);
@@ -166,6 +172,10 @@
           <div class="right">
             {#if t.assigned_to}
               <span class="pill">{userLabel(t.assigned_to)}</span>
+            {/if}
+
+            {#if !activeListId && t.list_id}
+              <span class="pill">{listLabel(t.list_id)}</span>
             {/if}
 
             {#if expandedId === t.id}
