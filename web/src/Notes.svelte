@@ -418,6 +418,11 @@
     .body { max-width: 100%; box-sizing: border-box; }
   }
 
+  /* iOS Safari "Request Desktop Website" can bypass width queries; use pointer/hover too. */
+  @media (hover: none) and (pointer: coarse) {
+    .mobileBar { display:flex; }
+  }
+
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   h3 { margin: 0; }
