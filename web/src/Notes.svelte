@@ -624,7 +624,7 @@
               </label>
             {/each}
           </div>
-          <div class="hint">(Share changes save when you click Save.)</div>
+          <div class="hint">(Share changes autosave.)</div>
         </div>
       </details>
     {:else}
@@ -722,7 +722,9 @@
   .mdBtn:hover { filter: brightness(1.08); }
 
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
-  .preview { width: 100%; min-height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.02); overflow:auto; }
+  .preview { width: 100%; min-height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-sizing: border-box; background: rgba(255,255,255,0.02); overflow:auto; }
+  .preview :global(*) { max-width: 100%; box-sizing: border-box; }
+  .preview { overflow-wrap: anywhere; }
   .preview :global(h1), .preview :global(h2), .preview :global(h3) { margin: 14px 0 8px; }
   .preview :global(p) { margin: 10px 0; }
   .preview :global(code) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.95em; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); }
