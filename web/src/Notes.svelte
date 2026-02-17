@@ -655,7 +655,8 @@
 
         <div class="groupCol">
           <div class="field">
-            <label for="note-group">Group</label>
+            <div class="label">Group</div>
+            <label class="srOnly" for="note-group">Group</label>
             <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
               const v = (e.currentTarget as HTMLSelectElement).value;
               if (!selectedId || version === null) return;
@@ -836,6 +837,7 @@
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .detailsRow .shareBox { background: rgba(255,255,255,0.01); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }
+  .srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
   .err { margin-top: 10px; color: var(--danger); font-size: 13px; }
   .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
