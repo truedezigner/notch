@@ -418,9 +418,9 @@
     .body { max-width: 100%; box-sizing: border-box; }
   }
 
-  /* iOS Safari "Request Desktop Website" can bypass width queries; use pointer/hover too. */
-  @media (hover: none) and (pointer: coarse) {
-    .mobileBar { display:flex; }
+  /* Desktop: hide the mobile toolbar only when we have a fine pointer + hover (real desktop). */
+  @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+    .mobileBar { display:none; }
   }
 
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
@@ -429,7 +429,7 @@
   select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
 
-  .mobileBar { display:none; gap: 8px; margin-top: 10px; }
+  .mobileBar { display:flex; gap: 8px; margin-top: 10px; }
 
   .controls { margin-top: 0; }
 
