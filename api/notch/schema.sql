@@ -87,3 +87,16 @@ CREATE TABLE IF NOT EXISTS outbox_notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_notifications(status, created_at);
+
+-- Public share links (anyone with link can view/edit depending on can_edit)
+CREATE TABLE IF NOT EXISTS note_shares (
+  token TEXT PRIMARY KEY,
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  can_edit INTEGER NOT NULL DEFAULT 1,
+  expires_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_note_shares_note ON note_shares(note_id);
+CREATE INDEX IF NOT EXISTS idx_note_shares_exp ON note_shares(expires_at);

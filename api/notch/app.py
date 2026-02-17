@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import time
 import uuid
+import secrets
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 import asyncio
@@ -18,6 +19,17 @@ from . import todos as todos_api
 from . import lists as lists_api
 from . import notes as notes_api
 from .scheduler import run_once
+
+
+def _html_escape(s: str) -> str:
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
 
 
 def now() -> int:
@@ -197,6 +209,38 @@ async def delete_note(note_id: str, p: Principal = Depends(require_principal)):
     return notes_api.delete_note(p=p, note_id=note_id)
 
 
+@app.post("/api/notes/{note_id}/share")
+async def create_note_share(note_id: str, payload: dict, p: Principal = Depends(require_principal)):
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+    # You must be able to see the note to share it.
+    note = notes_api.get_note(p=p, note_id=note_id)
+
+    can_edit = payload.get("can_edit")
+    can_edit_i = 1 if (can_edit is None or bool(can_edit)) else 0
+
+    expires_in = payload.get("expires_in_seconds")
+    expires_at = None
+    if expires_in is not None and expires_in != "":
+        try:
+            expires_in_i = int(expires_in)
+            if expires_in_i > 0:
+                expires_at = now() + expires_in_i
+        except Exception:
+            raise HTTPException(status_code=400, detail="expires_in_seconds must be int")
+
+    token = secrets.token_urlsafe(24)
+    with tx() as con:
+        con.execute(
+            "INSERT INTO note_shares(token,note_id,created_by,can_edit,expires_at,created_at) VALUES(?,?,?,?,?,?)",
+            (token, note_id, p.user["id"], can_edit_i, expires_at, now()),
+        )
+
+    # Link points to a public, no-auth page.
+    # Use relative URL; frontend will prefix with origin.
+    return {"ok": True, "token": token, "url": f"/share/n/{token}", "can_edit": bool(can_edit_i), "expires_at": expires_at, "note_id": note.get("id")}
+
+
 @app.get("/api/todos")
 async def list_todos(
     query: str | None = None,
@@ -286,6 +330,147 @@ async def bootstrap_admin(payload: dict):
 static_dir = Path(__file__).resolve().parent.parent / "static"
 if static_dir.exists():
     app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+
+@app.get("/share/n/{token}")
+async def public_note_share_page(token: str):
+    # Minimal public editor/viewer (no auth). Fetches note via public API.
+    # Keeps it simple for LAN MVP.
+    token_json = json.dumps(token)
+    html = """<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>Notch Share</title>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:#0b0f14; color:#e6edf3; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+    .card { border: 1px solid #243041; border-radius: 12px; background:#111826; padding: 12px; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid #243041; background:#111826; color:#e6edf3; font: inherit; }
+    textarea { min-height: 320px; resize: vertical; }
+    .row { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap: wrap; }
+    .muted { color:#9aa4af; font-size: 12px; }
+    .pill { border: 1px solid #243041; border-radius: 999px; padding: 2px 8px; font-size: 12px; color:#9aa4af; }
+  </style>
+</head>
+<body>
+  <div class=\"wrap\">
+    <div class=\"row\" style=\"margin-bottom:10px;\">
+      <h2 style=\"margin:0;\">Notch</h2>
+      <span class=\"pill\">Shared note</span>
+    </div>
+    <div class=\"card\">
+      <div class=\"row\">
+        <div class=\"muted\" id=\"status\">Loading…</div>
+      </div>
+      <div style=\"margin-top:10px;\">
+        <input id=\"title\" placeholder=\"Title\" />
+      </div>
+      <div style=\"margin-top:10px;\">
+        <textarea id=\"body\" placeholder=\"Markdown…\"></textarea>
+      </div>
+      <div class=\"muted\" style=\"margin-top:10px;\">Autosaves when you stop typing.</div>
+    </div>
+  </div>
+
+<script>
+const token = __TOKEN__;
+let version = null;
+let canEdit = true;
+let timer = null;
+
+const statusEl = document.getElementById('status');
+const titleEl = document.getElementById('title');
+const bodyEl = document.getElementById('body');
+
+function setStatus(t){ statusEl.textContent = t; }
+
+async function load(){
+  setStatus('Loading…');
+  const res = await fetch(`/api/public/notes/${encodeURIComponent(token)}`);
+  const j = await res.json();
+  if (!res.ok) throw new Error(j?.detail || 'Failed');
+  titleEl.value = j.note.title || '';
+  bodyEl.value = j.note.body_md || '';
+  version = j.note.version;
+  canEdit = !!j.can_edit;
+  titleEl.disabled = !canEdit;
+  bodyEl.disabled = !canEdit;
+  setStatus(canEdit ? 'Editable link' : 'View-only link');
+}
+
+async function save(){
+  if (!canEdit) return;
+  setStatus('Saving…');
+  const res = await fetch(`/api/public/notes/${encodeURIComponent(token)}` , {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: titleEl.value, body_md: bodyEl.value, if_version: version })
+  });
+  const j = await res.json();
+  if (!res.ok) {
+    setStatus(j?.detail || 'Save failed');
+    // best-effort reload
+    try { await load(); } catch {}
+    return;
+  }
+  version = j.note.version;
+  setStatus('Saved');
+}
+
+function dirty(){
+  if (!canEdit) return;
+  setStatus('Unsaved');
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(() => { timer=null; save(); }, 650);
+}
+
+titleEl.addEventListener('input', dirty);
+bodyEl.addEventListener('input', dirty);
+
+load().catch(e => { setStatus(String(e?.message || e)); });
+</script>
+</body>
+</html>""".replace("__TOKEN__", token_json)
+
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/public/notes/{token}")
+async def public_get_note(token: str):
+    with tx() as con:
+        row = con.execute("SELECT * FROM note_shares WHERE token=?", (token,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        share = dict(row)
+        if share.get("expires_at") is not None and int(share.get("expires_at") or 0) <= now():
+            raise HTTPException(status_code=410, detail="Link expired")
+        nrow = con.execute("SELECT id,title,body_md,version,updated_at FROM notes WHERE id=?", (share["note_id"],)).fetchone()
+        if not nrow:
+            raise HTTPException(status_code=404, detail="Not found")
+        note = dict(nrow)
+
+    return {"ok": True, "note": note, "can_edit": bool(int(share.get("can_edit") or 0)), "expires_at": share.get("expires_at")}
+
+
+@app.patch("/api/public/notes/{token}")
+async def public_patch_note(token: str, payload: dict):
+    with tx() as con:
+        row = con.execute("SELECT * FROM note_shares WHERE token=?", (token,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        share = dict(row)
+        if share.get("expires_at") is not None and int(share.get("expires_at") or 0) <= now():
+            raise HTTPException(status_code=410, detail="Link expired")
+        if not bool(int(share.get("can_edit") or 0)):
+            raise HTTPException(status_code=403, detail="Read-only link")
+
+    # Reuse the normal patch logic, but bypass auth with a synthetic principal.
+    # Principal.user only needs id for version check logic.
+    p = Principal(kind="user", user={"id": share["created_by"], "handle": "public", "display_name": "Public"})
+    note = notes_api.patch_note(p=p, note_id=str(share["note_id"]), payload=payload)
+    return {"ok": True, "note": note}
 
 
 @app.get("/app/{path:path}")

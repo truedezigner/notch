@@ -95,3 +95,11 @@ export async function deleteNote(id: string): Promise<{ ok: boolean; deleted: bo
   const j = await req(`/api/notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
   return j;
 }
+
+export async function createNoteShare(id: string, opts: { can_edit?: boolean; expires_in_seconds?: number | null } = {}): Promise<{ ok: boolean; token: string; url: string; can_edit: boolean; expires_at?: number | null; note_id: string }> {
+  const j = await req(`/api/notes/${encodeURIComponent(id)}/share`, {
+    method: 'POST',
+    body: JSON.stringify(opts || {})
+  });
+  return j;
+}
