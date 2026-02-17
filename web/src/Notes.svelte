@@ -813,6 +813,12 @@
   .groupCol { min-width: 0; }
   .groupCol select { width: 100%; }
 
+  /* Make both columns start at the same visual baseline */
+  .detailsRow .noteShare { margin-top: 0; }
+  .detailsRow .noteShareSummary { font-size: 12px; color: var(--muted); font-weight: 900; margin: 0 0 6px; list-style: none; }
+  .detailsRow .noteShareSummary::-webkit-details-marker { display:none; }
+  .detailsRow .label { font-weight: 900; }
+
   .shareScroll { max-height: 110px; overflow: auto; }
   .mdbar { margin-top: 10px; display:flex; gap: 6px; flex-wrap: wrap; }
   .mdBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 10px; font-weight: 800; }
