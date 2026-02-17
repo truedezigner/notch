@@ -354,24 +354,35 @@
 
       <textarea class="body" bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
 
-      <div class="share">
-        <div class="label">Shared with</div>
-        <div class="shareBox">
-          {#each users as u}
-            <label class="shareRow">
-              <input type="checkbox" checked={sharedWith.includes(u.id)} on:change={(e)=>{
-                const checked = (e.currentTarget as HTMLInputElement).checked;
-                const next = new Set(sharedWith);
-                if (checked) next.add(u.id); else next.delete(u.id);
-                sharedWith = Array.from(next);
-                markDirty();
-              }} />
-              <span>{u.display_name}</span>
-            </label>
-          {/each}
+      <details class="noteShare" open={groupSharedWith.length === 0}>
+        <summary class="noteShareSummary">
+          {#if groupSharedWith.length}
+            Note-specific sharing
+          {:else}
+            Shared with
+          {/if}
+        </summary>
+        <div class="share" style="margin-top: 8px;">
+          {#if groupSharedWith.length}
+            <div class="hint">This note is already shared with the group. Use this only to share the note beyond the group.</div>
+          {/if}
+          <div class="shareBox">
+            {#each users as u}
+              <label class="shareRow">
+                <input type="checkbox" checked={sharedWith.includes(u.id)} on:change={(e)=>{
+                  const checked = (e.currentTarget as HTMLInputElement).checked;
+                  const next = new Set(sharedWith);
+                  if (checked) next.add(u.id); else next.delete(u.id);
+                  sharedWith = Array.from(next);
+                  markDirty();
+                }} />
+                <span>{u.display_name}</span>
+              </label>
+            {/each}
+          </div>
+          <div class="hint">(Share changes save when you click Save.)</div>
         </div>
-        <div class="hint">(Share changes save when you click Save.)</div>
-      </div>
+      </details>
     {:else}
       <div class="empty">Select a note or create one.</div>
     {/if}
@@ -460,6 +471,10 @@
 
   .share { margin-top: 10px; }
   .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+  .noteShare { margin-top: 10px; }
+  .noteShareSummary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 800; }
+
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }
 
