@@ -620,54 +620,58 @@
         <div class="preview" role="region" aria-label="Markdown preview">{@html mdToHtml(body)}</div>
       {/if}
 
-      <details class="noteShare" open={groupSharedWith.length === 0}>
-        <summary class="noteShareSummary">
-          {#if groupSharedWith.length}
-            Note-specific sharing
-          {:else}
-            Shared with
-          {/if}
-        </summary>
-        <div class="share" style="margin-top: 8px;">
-          {#if groupSharedWith.length}
-            <div class="hint">This note is already shared with the group. Use this only to share the note beyond the group.</div>
-          {/if}
-          <div class="shareBox">
-            {#each users as u}
-              <label class="shareRow">
-                <input type="checkbox" checked={sharedWith.includes(u.id)} on:change={(e)=>{
-                  const checked = (e.currentTarget as HTMLInputElement).checked;
-                  const next = new Set(sharedWith);
-                  if (checked) next.add(u.id); else next.delete(u.id);
-                  sharedWith = Array.from(next);
-                  markDirty();
-                }} />
-                <span>{u.display_name}</span>
-              </label>
-            {/each}
-          </div>
-          <div class="hint">(Share changes autosave.)</div>
+      <div class="detailsRow">
+        <div class="shareCol">
+          <details class="noteShare" open={groupSharedWith.length === 0}>
+            <summary class="noteShareSummary">
+              {#if groupSharedWith.length}
+                Note-specific sharing
+              {:else}
+                Shared with
+              {/if}
+            </summary>
+            <div class="share" style="margin-top: 8px;">
+              {#if groupSharedWith.length}
+                <div class="hint">This note is already shared with the group. Use this only to share the note beyond the group.</div>
+              {/if}
+              <div class="shareBox shareScroll">
+                {#each users as u}
+                  <label class="shareRow">
+                    <input type="checkbox" checked={sharedWith.includes(u.id)} on:change={(e)=>{
+                      const checked = (e.currentTarget as HTMLInputElement).checked;
+                      const next = new Set(sharedWith);
+                      if (checked) next.add(u.id); else next.delete(u.id);
+                      sharedWith = Array.from(next);
+                      markDirty();
+                    }} />
+                    <span>{u.display_name}</span>
+                  </label>
+                {/each}
+              </div>
+              <div class="hint">(Share changes autosave.)</div>
+            </div>
+          </details>
         </div>
-      </details>
 
-      <div class="metaRow">
-        <div class="field">
-          <label for="note-group">Group</label>
-          <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
-            const v = (e.currentTarget as HTMLSelectElement).value;
-            if (!selectedId || version === null) return;
-            try {
-              const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
-              version = updated.version;
-              // stick to the note's new group
-              activeGroupId = updated.group_id || '';
-              await refresh();
-            } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
-          }}>
-            {#each groups as g}
-              <option value={g.id}>{g.name}</option>
-            {/each}
-          </select>
+        <div class="groupCol">
+          <div class="field">
+            <label for="note-group">Group</label>
+            <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
+              const v = (e.currentTarget as HTMLSelectElement).value;
+              if (!selectedId || version === null) return;
+              try {
+                const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
+                version = updated.version;
+                // stick to the note's new group
+                activeGroupId = updated.group_id || '';
+                await refresh();
+              } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
+            }}>
+              {#each groups as g}
+                <option value={g.id}>{g.name}</option>
+              {/each}
+            </select>
+          </div>
         </div>
       </div>
     {:else}
@@ -801,8 +805,14 @@
 
   .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); display:inline-flex; align-items:center; justify-content:center; }
   .trash:hover { filter: brightness(1.08); }
-  .metaRow { margin-top: 10px; display:flex; gap: 12px; flex-wrap: wrap; }
-  .metaRow .field { display:flex; flex-direction:column; gap: 6px; }
+  .detailsRow { margin-top: 12px; display:grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: start; }
+  @media (max-width: 900px){ .detailsRow { grid-template-columns: 1fr; } }
+
+  .shareCol { min-width: 0; }
+  .groupCol { min-width: 0; }
+  .groupCol select { width: 100%; }
+
+  .shareScroll { max-height: 110px; overflow: auto; }
   .mdbar { margin-top: 10px; display:flex; gap: 6px; flex-wrap: wrap; }
   .mdBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 10px; font-weight: 800; }
   .mdBtn:hover { filter: brightness(1.08); }
