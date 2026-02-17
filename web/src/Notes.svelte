@@ -805,7 +805,7 @@
 
   .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); display:inline-flex; align-items:center; justify-content:center; }
   .trash:hover { filter: brightness(1.08); }
-  .detailsRow { margin-top: 12px; display:grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: start; }
+  .detailsRow { margin-top: 12px; display:grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: start; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
   @media (max-width: 900px){ .detailsRow { grid-template-columns: 1fr; } }
 
   .shareCol { min-width: 0; }
@@ -834,6 +834,7 @@
   .noteShareSummary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 800; }
 
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
+  .detailsRow .shareBox { background: rgba(255,255,255,0.01); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }
 
   .err { margin-top: 10px; color: var(--danger); font-size: 13px; }
