@@ -47,6 +47,7 @@
   let showGroupShare = false;
 
   let saveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' = 'idle';
+  let viewMode: 'edit' | 'preview' = 'edit';
   let saveMsg = '';
   let saveTimer: any = null;
   let lastSavedAt: number | null = null;
@@ -60,6 +61,102 @@
     const s = String(md || '').replace(/\s+/g, ' ').trim();
     if (!s) return '—';
     return s.length > 44 ? s.slice(0, 44) + '…' : s;
+  }
+
+  function escapeHtml(s: string) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function mdToHtml(md: string) {
+    // Minimal, safe-ish markdown rendering (no raw HTML).
+    const src = String(md || '').replace(/\r\n/g, '\n');
+    const lines = src.split('\n');
+
+    const out: string[] = [];
+    let inCode = false;
+    let codeBuf: string[] = [];
+
+    function flushCode() {
+      if (!codeBuf.length) return;
+      out.push(`<pre><code>${escapeHtml(codeBuf.join('\n'))}</code></pre>`);
+      codeBuf = [];
+    }
+
+    for (const raw of lines) {
+      const line = raw;
+      if (line.startsWith('```')) {
+        if (inCode) {
+          inCode = false;
+          flushCode();
+        } else {
+          inCode = true;
+        }
+        continue;
+      }
+      if (inCode) {
+        codeBuf.push(line);
+        continue;
+      }
+
+      const t = line.trim();
+      if (!t) { out.push(''); continue; }
+
+      // headings
+      const m = t.match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        const lvl = m[1].length;
+        out.push(`<h${lvl}>${inlineMd(m[2])}</h${lvl}>`);
+        continue;
+      }
+
+      // unordered list
+      const lm = t.match(/^[-*]\s+(.*)$/);
+      if (lm) {
+        out.push(`<li>${inlineMd(lm[1])}</li>`);
+        continue;
+      }
+
+      out.push(`<p>${inlineMd(t)}</p>`);
+    }
+
+    if (inCode) {
+      inCode = false;
+      flushCode();
+    }
+
+    // wrap consecutive <li> into <ul>
+    const wrapped: string[] = [];
+    let inUl = false;
+    for (const chunk of out) {
+      if (chunk.startsWith('<li>')) {
+        if (!inUl) { wrapped.push('<ul>'); inUl = true; }
+        wrapped.push(chunk);
+      } else {
+        if (inUl) { wrapped.push('</ul>'); inUl = false; }
+        wrapped.push(chunk);
+      }
+    }
+    if (inUl) wrapped.push('</ul>');
+
+    return wrapped.filter(x => x !== '').join('\n');
+
+    function inlineMd(s: string) {
+      let v = escapeHtml(s);
+      // code
+      v = v.replace(/`([^`]+)`/g, (_m, a) => `<code>${escapeHtml(a)}</code>`);
+      // bold
+      v = v.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // italics
+      v = v.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      // links [text](url)
+      v = v.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+      return v;
+    }
   }
 
   function fmtRel(ts: number) {
@@ -378,11 +475,21 @@
           </svg>
         </button>
 
-        <button on:click={save} disabled={!selectedId || version===null || saveStatus==='saving'}>Save</button>
+        <button class="iconBtn" type="button" title={viewMode==='edit' ? 'Preview' : 'Edit'} aria-label={viewMode==='edit' ? 'Preview' : 'Edit'} on:click={() => { viewMode = viewMode === 'edit' ? 'preview' : 'edit'; }}>
+          {#if viewMode === 'edit'}
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+            </svg>
+          {:else}
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z" />
+            </svg>
+          {/if}
+        </button>
 
-        <button class="trash" type="button" on:click={async () => {
+        <button class="trash" type="button" title="Delete" aria-label="Delete" on:click={async () => {
           if (!selectedId) return;
-          if (!confirm('Delete this note?')) return;
+          if (!confirm('Move this note to trash?')) return;
           try {
             await deleteNote(selectedId);
             await refresh();
@@ -390,7 +497,11 @@
           } catch (e:any) {
             err = e?.message || String(e);
           }
-        }}>Delete</button>
+        }}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v10h-2V9Zm4 0h2v10h-2V9ZM7 9h2v10H7V9Z" />
+          </svg>
+        </button>
       </div>
 
       <div class="metaRow">
@@ -414,7 +525,11 @@
         </div>
       </div>
 
-      <textarea class="body" bind:this={bodyEl} bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
+      {#if viewMode === 'edit'}
+        <textarea class="body" bind:this={bodyEl} bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
+      {:else}
+        <div class="preview" role="region" aria-label="Markdown preview">{@html mdToHtml(body)}</div>
+      {/if}
 
       <details class="noteShare" open={groupSharedWith.length === 0}>
         <summary class="noteShareSummary">
@@ -531,11 +646,17 @@
   .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; }
   /* dots (removed) */
 
-  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
+  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); display:inline-flex; align-items:center; justify-content:center; }
   .trash:hover { filter: brightness(1.08); }
   .metaRow { margin-top: 10px; display:flex; gap: 12px; flex-wrap: wrap; }
   .metaRow .field { display:flex; flex-direction:column; gap: 6px; }
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
+  .preview { width: 100%; min-height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.02); overflow:auto; }
+  .preview :global(h1), .preview :global(h2), .preview :global(h3) { margin: 14px 0 8px; }
+  .preview :global(p) { margin: 10px 0; }
+  .preview :global(code) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.95em; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); }
+  .preview :global(pre) { padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: rgba(0,0,0,0.25); overflow:auto; }
+  .preview :global(a) { text-decoration: underline; }
 
   .share { margin-top: 10px; }
   .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
