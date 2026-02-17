@@ -182,8 +182,22 @@
               <button class="iconBtn" type="button" title="Copy link" aria-label="Copy link" on:click={async ()=>{
                 const base = location.pathname.includes('/app/') ? '/app/' : '/';
                 const url = `${location.origin}${base}todos/${encodeURIComponent(t.id)}`;
-                try { await navigator.clipboard.writeText(url); }
-                catch (e:any) { err = e?.message || String(e); }
+                try {
+                  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') await navigator.clipboard.writeText(url);
+                  else {
+                    const ta = document.createElement('textarea');
+                    ta.value = url;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    ta.style.top = '0';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                  }
+                }
+                catch (e:any) { prompt('Copy this:', url); }
               }}>
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
                   <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z" />

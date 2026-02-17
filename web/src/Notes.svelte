@@ -238,10 +238,43 @@
     history.pushState({}, '', `${base}notes`);
   }
 
+  async function copyText(t: string) {
+    try {
+      // navigator.clipboard can be undefined on some browsers/contexts.
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(t);
+        return true;
+      }
+    } catch {
+      // fall through
+    }
+
+    // Fallback: execCommand copy.
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) return true;
+    } catch {
+      // fall through
+    }
+
+    // Last resort: prompt so user can copy manually.
+    prompt('Copy this:', t);
+    return false;
+  }
+
   async function copyLink(id: string) {
     const base = location.pathname.includes('/app/') ? '/app/' : '/';
     const url = `${location.origin}${base}notes/${encodeURIComponent(id)}`;
-    try { await navigator.clipboard.writeText(url); }
+    try { await copyText(url); }
     catch (e:any) { err = e?.message || String(e); }
   }
 
@@ -284,6 +317,30 @@
       newTitle = '';
       await pick(n);
     } catch (e:any) { err = e?.message || String(e); }
+  }
+
+  function insertIntoBody(text: string, surround?: { before: string; after: string }) {
+    if (!bodyEl) {
+      body = body + text;
+      markDirty();
+      return;
+    }
+    const start = bodyEl.selectionStart ?? body.length;
+    const end = bodyEl.selectionEnd ?? body.length;
+    const sel = body.slice(start, end);
+
+    let insert = text;
+    if (surround) insert = surround.before + sel + surround.after;
+
+    body = body.slice(0, start) + insert + body.slice(end);
+    markDirty();
+
+    tick().then(() => {
+      if (!bodyEl) return;
+      const pos = surround ? (start + surround.before.length + sel.length) : (start + insert.length);
+      bodyEl.focus();
+      bodyEl.setSelectionRange(pos, pos);
+    });
   }
 
   function markDirty() {
@@ -526,6 +583,16 @@
       </div>
 
       {#if viewMode === 'edit'}
+        <div class="mdbar" aria-label="Markdown tools">
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '# ', after: '' })} title="Heading 1">#</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '## ', after: '' })} title="Heading 2">##</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '```\n', after: '\n```\n' })} title="Code block">```</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '`', after: '`' })} title="Inline code">`</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '**', after: '**' })} title="Bold">B</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '*', after: '*' })} title="Italic">I</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('', { before: '- ', after: '' })} title="Bullet">•</button>
+          <button type="button" class="mdBtn" on:click={() => insertIntoBody('[text](https://example.com)')} title="Link">Link</button>
+        </div>
         <textarea class="body" bind:this={bodyEl} bind:value={body} on:input={markDirty} placeholder="# Markdown note\n\nWrite here…"></textarea>
       {:else}
         <div class="preview" role="region" aria-label="Markdown preview">{@html mdToHtml(body)}</div>
@@ -650,6 +717,10 @@
   .trash:hover { filter: brightness(1.08); }
   .metaRow { margin-top: 10px; display:flex; gap: 12px; flex-wrap: wrap; }
   .metaRow .field { display:flex; flex-direction:column; gap: 6px; }
+  .mdbar { margin-top: 10px; display:flex; gap: 6px; flex-wrap: wrap; }
+  .mdBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 10px; font-weight: 800; }
+  .mdBtn:hover { filter: brightness(1.08); }
+
   .body { width: 100%; min-height: 320px; margin-top: 10px; resize: vertical; }
   .preview { width: 100%; min-height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.02); overflow:auto; }
   .preview :global(h1), .preview :global(h2), .preview :global(h3) { margin: 14px 0 8px; }
