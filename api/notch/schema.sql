@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS todos (
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
+  deleted_at INTEGER,
   version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS notes (
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
+  deleted_at INTEGER,
   version INTEGER NOT NULL DEFAULT 1
 );
 

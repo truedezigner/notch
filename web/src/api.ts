@@ -78,10 +78,14 @@ export async function createList(name: string): Promise<TodoList> {
   return j.list;
 }
 
-export async function listTodos(includeDone = false, listId?: string | null): Promise<Todo[]> {
+export async function listTodos(includeDone = false, listId?: string | null, opts: { deleted_only?: boolean } = {}): Promise<Todo[]> {
   const qs = new URLSearchParams();
   qs.set('include_done', includeDone ? '1' : '0');
   if (listId) qs.set('list_id', listId);
+  if (opts.deleted_only) {
+    qs.set('include_deleted', '1');
+    qs.set('deleted_only', '1');
+  }
   const j = await req(`/api/todos?${qs.toString()}`);
   return j.todos;
 }
@@ -101,4 +105,9 @@ export async function patchTodo(id: string, patch: any): Promise<Todo> {
 export async function deleteTodo(id: string): Promise<{ ok: boolean; deleted: boolean; id: string }> {
   const j = await req(`/api/todos/${encodeURIComponent(id)}`, { method: 'DELETE' });
   return j;
+}
+
+export async function restoreTodo(id: string): Promise<Todo> {
+  const j = await req(`/api/todos/${encodeURIComponent(id)}/restore`, { method: 'POST' });
+  return j.todo as Todo;
 }

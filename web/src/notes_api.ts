@@ -63,11 +63,15 @@ export async function patchNoteGroup(id: string, patch: any): Promise<NoteGroup>
   return j.group as NoteGroup;
 }
 
-export async function listNotes(group_id?: string | null, query?: string | null, limit = 200): Promise<Note[]> {
+export async function listNotes(group_id?: string | null, query?: string | null, limit = 200, opts: { deleted_only?: boolean } = {}): Promise<Note[]> {
   const qs = new URLSearchParams();
   if (group_id) qs.set('group_id', group_id);
   if (query) qs.set('query', query);
   if (limit) qs.set('limit', String(limit));
+  if (opts.deleted_only) {
+    qs.set('include_deleted', '1');
+    qs.set('deleted_only', '1');
+  }
   const j = await req(`/api/notes?${qs.toString()}`);
   return j.notes as Note[];
 }
@@ -94,6 +98,11 @@ export async function patchNote(id: string, patch: any): Promise<Note> {
 export async function deleteNote(id: string): Promise<{ ok: boolean; deleted: boolean; id: string }> {
   const j = await req(`/api/notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
   return j;
+}
+
+export async function restoreNote(id: string): Promise<Note> {
+  const j = await req(`/api/notes/${encodeURIComponent(id)}/restore`, { method: 'POST' });
+  return j.note as Note;
 }
 
 export async function createNoteShare(id: string, opts: { can_edit?: boolean; expires_in_seconds?: number | null } = {}): Promise<{ ok: boolean; token: string; url: string; can_edit: boolean; expires_at?: number | null; note_id: string }> {

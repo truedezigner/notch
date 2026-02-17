@@ -179,10 +179,19 @@ async def patch_note_group(group_id: str, payload: dict, p: Principal = Depends(
 async def list_notes(
     query: str | None = None,
     group_id: str | None = None,
+    include_deleted: int = 0,
+    deleted_only: int = 0,
     limit: int = 200,
     p: Principal = Depends(require_principal),
 ):
-    notes = notes_api.list_notes(p=p, query=query, group_id=group_id, limit=limit)
+    notes = notes_api.list_notes(
+        p=p,
+        query=query,
+        group_id=group_id,
+        include_deleted=bool(include_deleted),
+        deleted_only=bool(deleted_only),
+        limit=limit,
+    )
     return {"ok": True, "notes": notes}
 
 
@@ -207,6 +216,12 @@ async def patch_note(note_id: str, payload: dict, p: Principal = Depends(require
 @app.delete("/api/notes/{note_id}")
 async def delete_note(note_id: str, p: Principal = Depends(require_principal)):
     return notes_api.delete_note(p=p, note_id=note_id)
+
+
+@app.post("/api/notes/{note_id}/restore")
+async def restore_note(note_id: str, p: Principal = Depends(require_principal)):
+    note = notes_api.restore_note(p=p, note_id=note_id)
+    return {"ok": True, "note": note}
 
 
 @app.post("/api/notes/{note_id}/share")
@@ -246,10 +261,20 @@ async def list_todos(
     query: str | None = None,
     include_done: int = 0,
     list_id: str | None = None,
+    include_deleted: int = 0,
+    deleted_only: int = 0,
     limit: int = 200,
     p: Principal = Depends(require_principal),
 ):
-    todos = todos_api.list_todos(p=p, query=query, include_done=bool(include_done), list_id=list_id, limit=limit)
+    todos = todos_api.list_todos(
+        p=p,
+        query=query,
+        include_done=bool(include_done),
+        list_id=list_id,
+        include_deleted=bool(include_deleted),
+        deleted_only=bool(deleted_only),
+        limit=limit,
+    )
     return {"ok": True, "todos": todos}
 
 
@@ -268,6 +293,12 @@ async def patch_todo(todo_id: str, payload: dict, p: Principal = Depends(require
 @app.delete("/api/todos/{todo_id}")
 async def delete_todo(todo_id: str, p: Principal = Depends(require_principal)):
     return todos_api.delete_todo(p=p, todo_id=todo_id)
+
+
+@app.post("/api/todos/{todo_id}/restore")
+async def restore_todo(todo_id: str, p: Principal = Depends(require_principal)):
+    todo = todos_api.restore_todo(p=p, todo_id=todo_id)
+    return {"ok": True, "todo": todo}
 
 
 @app.post("/api/admin/users")
@@ -446,10 +477,13 @@ async def public_get_note(token: str):
         share = dict(row)
         if share.get("expires_at") is not None and int(share.get("expires_at") or 0) <= now():
             raise HTTPException(status_code=410, detail="Link expired")
-        nrow = con.execute("SELECT id,title,body_md,version,updated_at FROM notes WHERE id=?", (share["note_id"],)).fetchone()
+        nrow = con.execute("SELECT id,title,body_md,version,updated_at,deleted_at FROM notes WHERE id=?", (share["note_id"],)).fetchone()
         if not nrow:
             raise HTTPException(status_code=404, detail="Not found")
         note = dict(nrow)
+        if note.get("deleted_at") is not None:
+            raise HTTPException(status_code=404, detail="Not found")
+        note.pop("deleted_at", None)
 
     return {"ok": True, "note": note, "can_edit": bool(int(share.get("can_edit") or 0)), "expires_at": share.get("expires_at")}
 

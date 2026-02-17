@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Todo, TodoList } from './api';
-  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, setToken } from './api';
+  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
@@ -8,7 +8,7 @@
   let todos: Todo[] = [];
   let users: User[] = [];
   let lists: TodoList[] = [];
-  // '' means "All lists"
+  // '' means "All lists"; '__trash__' means Trash
   let activeListId: string = '';
 
   let loading = true;
@@ -19,6 +19,14 @@
   let includeDone = false;
   export let initialExpandedId: string | null = null;
   let expandedId: string | null = null;
+
+  let toast: { msg: string; action?: string; fn?: () => void } | null = null;
+  let toastTimer: any = null;
+  function showToast(t: { msg: string; action?: string; fn?: () => void }) {
+    toast = t;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast = null; toastTimer = null; }, 5500);
+  }
 
   function listLabel(id?: string | null) {
     if (!id) return '';
@@ -62,7 +70,8 @@
       users = await listUsers();
       lists = await listLists();
       // Default to All lists so shared todos show up even if their list isn't shared.
-      todos = await listTodos(includeDone, activeListId || null);
+      const trash = activeListId === '__trash__';
+      todos = await listTodos(includeDone, trash ? null : (activeListId || null), { deleted_only: trash });
       if (initialExpandedId) {
         const found = todos.find(t => t.id === initialExpandedId);
         if (found) expandedId = initialExpandedId;
@@ -121,11 +130,21 @@
   refresh();
 </script>
 
+{#if toast}
+  <div class="toast" role="status">
+    <div class="toastMsg">{toast.msg}</div>
+    {#if toast.action && toast.fn}
+      <button class="toastBtn" type="button" on:click={() => { const fn = toast?.fn; toast = null; fn && fn(); }}> {toast.action} </button>
+    {/if}
+  </div>
+{/if}
+
 <div class="top">
   <div class="topLeft">
     <h3>Todos</h3>
     <select class="listSel" bind:value={activeListId} on:change={refresh}>
       <option value="">All</option>
+      <option value="__trash__">Trash</option>
       {#each lists as l}
         <option value={l.id}>{l.name}</option>
       {/each}
@@ -205,13 +224,18 @@
               </button>
 
               <button class="trash" type="button" on:click={async () => {
-                if (!confirm('Delete this todo?')) return;
+                if (!confirm('Move this todo to trash?')) return;
                 try {
                   await deleteTodo(t.id);
                   expandedId = null;
+                  showToast({
+                    msg: 'Moved to Trash',
+                    action: 'Undo',
+                    fn: async () => { try { await restoreTodo(t.id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
+                  });
                   await refresh();
                 } catch (err2:any) { err = err2?.message || String(err2); }
-              }}>Delete</button>
+              }}>Trash</button>
             {/if}
           </div>
         </div>
@@ -361,4 +385,8 @@
   .done { text-decoration: line-through; color: var(--muted); }
   /* (todo description removed) */
   .meta { margin-left: 28px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+  .toast { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 10px 12px; display:flex; gap: 10px; align-items:center; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  .toastMsg { color: var(--text); font-size: 13px; }
+  .toastBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
 </style>

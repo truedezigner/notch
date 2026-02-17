@@ -22,4 +22,6 @@ def apply_schema() -> None:
         # Best-effort migrations for early-stage schema changes.
         # (SQLite doesn't support ALTER TABLE .. ADD COLUMN IF NOT EXISTS in all versions.)
         _try(con, "ALTER TABLE todos ADD COLUMN list_id TEXT")
+        _try(con, "ALTER TABLE todos ADD COLUMN deleted_at INTEGER")
         _try(con, "ALTER TABLE notes ADD COLUMN group_id TEXT")
+        _try(con, "ALTER TABLE notes ADD COLUMN deleted_at INTEGER")

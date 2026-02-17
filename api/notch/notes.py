@@ -128,7 +128,15 @@ def create_group(*, p: Principal, payload: dict) -> dict[str, Any]:
     return _row_to_group(dict(row))
 
 
-def list_notes(*, p: Principal, query: str | None, group_id: str | None, limit: int = 200) -> list[dict[str, Any]]:
+def list_notes(
+    *,
+    p: Principal,
+    query: str | None,
+    group_id: str | None,
+    include_deleted: bool = False,
+    deleted_only: bool = False,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")
 
@@ -143,6 +151,11 @@ def list_notes(*, p: Principal, query: str | None, group_id: str | None, limit: 
     if group_id:
         where.append("group_id=?")
         params.append(str(group_id))
+
+    if not include_deleted:
+        where.append("deleted_at IS NULL")
+    if deleted_only:
+        where.append("deleted_at IS NOT NULL")
 
     if q:
         where.append("(lower(title) LIKE ? OR lower(body_md) LIKE ?)")
@@ -202,6 +215,8 @@ def get_note(*, p: Principal, note_id: str) -> dict[str, Any]:
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         note = dict(row)
+    if note.get("deleted_at") is not None:
+        raise HTTPException(status_code=404, detail="Not found")
     if not _can_see(p.user["id"], note):
         raise HTTPException(status_code=404, detail="Not found")
     return _row_to_note(note)
@@ -221,9 +236,35 @@ def delete_note(*, p: Principal, note_id: str) -> dict[str, Any]:
         if cur.get("created_by") != p.user["id"]:
             raise HTTPException(status_code=403, detail="Only creator can delete")
 
-        con.execute("DELETE FROM notes WHERE id=?", (note_id,))
+        t = now()
+        con.execute(
+            "UPDATE notes SET deleted_at=?, updated_at=?, version=version+1 WHERE id=?",
+            (t, t, note_id),
+        )
 
     return {"ok": True, "deleted": True, "id": note_id}
+
+
+def restore_note(*, p: Principal, note_id: str) -> dict[str, Any]:
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM notes WHERE id=?", (note_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can restore")
+
+        t = now()
+        con.execute(
+            "UPDATE notes SET deleted_at=NULL, updated_at=?, version=version+1 WHERE id=?",
+            (t, note_id),
+        )
+        row2 = con.execute("SELECT * FROM notes WHERE id=?", (note_id,)).fetchone()
+
+    return _row_to_note(dict(row2))
 
 
 def patch_note(*, p: Principal, note_id: str, payload: dict) -> dict[str, Any]:
@@ -261,6 +302,8 @@ def patch_note(*, p: Principal, note_id: str, payload: dict) -> dict[str, Any]:
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         cur = dict(row)
+        if cur.get("deleted_at") is not None:
+            raise HTTPException(status_code=409, detail="Note is in trash")
         if not _can_see(p.user["id"], cur):
             raise HTTPException(status_code=404, detail="Not found")
         if if_version is not None and int(cur.get("version") or 0) != if_version:

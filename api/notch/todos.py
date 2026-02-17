@@ -91,7 +91,16 @@ def create_todo(*, p: Principal, payload: dict) -> dict[str, Any]:
     return _row_to_todo(dict(row))
 
 
-def list_todos(*, p: Principal, query: str | None, include_done: bool = False, list_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+def list_todos(
+    *,
+    p: Principal,
+    query: str | None,
+    include_done: bool = False,
+    list_id: str | None = None,
+    include_deleted: bool = False,
+    deleted_only: bool = False,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")
 
@@ -106,6 +115,11 @@ def list_todos(*, p: Principal, query: str | None, include_done: bool = False, l
     if list_id:
         where.append("list_id=?")
         params.append(str(list_id))
+
+    if not include_deleted:
+        where.append("deleted_at IS NULL")
+    if deleted_only:
+        where.append("deleted_at IS NOT NULL")
 
     if q:
         where.append("(lower(title) LIKE ?)")
@@ -132,6 +146,8 @@ def get_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         todo = dict(row)
+    if todo.get("deleted_at") is not None:
+        raise HTTPException(status_code=404, detail="Not found")
     # Permissions: same check as list
     if not _can_see(p.user["id"], todo):
         raise HTTPException(status_code=404, detail="Not found")
@@ -153,9 +169,35 @@ def delete_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
         if cur.get("created_by") != p.user["id"]:
             raise HTTPException(status_code=403, detail="Only creator can delete")
 
-        con.execute("DELETE FROM todos WHERE id=?", (todo_id,))
+        t = now()
+        con.execute(
+            "UPDATE todos SET deleted_at=?, updated_at=?, version=version+1 WHERE id=?",
+            (t, t, todo_id),
+        )
 
     return {"ok": True, "deleted": True, "id": todo_id}
+
+
+def restore_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can restore")
+
+        t = now()
+        con.execute(
+            "UPDATE todos SET deleted_at=NULL, updated_at=?, version=version+1 WHERE id=?",
+            (t, todo_id),
+        )
+        row2 = con.execute("SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+
+    return _row_to_todo(dict(row2))
 
 
 def patch_todo(*, p: Principal, todo_id: str, payload: dict) -> dict[str, Any]:
@@ -214,6 +256,8 @@ def patch_todo(*, p: Principal, todo_id: str, payload: dict) -> dict[str, Any]:
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         cur = dict(row)
+        if cur.get("deleted_at") is not None:
+            raise HTTPException(status_code=409, detail="Todo is in trash")
         if not _can_see(p.user["id"], cur):
             raise HTTPException(status_code=404, detail="Not found")
 

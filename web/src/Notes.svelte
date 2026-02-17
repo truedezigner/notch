@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import type { User } from './api';
   import { listUsers } from './api';
-  import { getNote, patchNote, deleteNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup, createNoteShare } from './notes_api';
+  import { getNote, patchNote, deleteNote, restoreNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup, createNoteShare } from './notes_api';
 
   export let initialSelectedId: string | null = null;
   let handledInitial = false;
@@ -12,7 +12,7 @@
 
   let users: User[] = [];
   let groups: NoteGroup[] = [];
-  // '' means "All groups"
+  // '' means "All groups"; '__trash__' means Trash
   let activeGroupId: string = '';
   let notes: Note[] = [];
 
@@ -181,7 +181,8 @@
       groups = await listNoteGroups();
       // Default to All groups so individually-shared notes show up even if their group isn't shared.
       groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
-      notes = await listNotes(activeGroupId || null, q);
+      const trash = activeGroupId === '__trash__';
+      notes = await listNotes(trash ? null : (activeGroupId || null), q, 200, { deleted_only: trash });
       // If the currently-selected note no longer exists in this view, clear the editor.
       if (selectedId && !notes.some(n => n.id === selectedId)) {
         selectedId = null;
@@ -221,6 +222,8 @@
     sharedWith = [];
     version = null;
     groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
+    // Leaving a specific note view when switching filters.
+    closeEditor();
     refresh();
   }
 
@@ -283,6 +286,14 @@
   let shareNeverExpires = true;
   let shareHours = '24';
   let shareUrl: string | null = null;
+
+  let toast: { msg: string; action?: string; fn?: () => void } | null = null;
+  let toastTimer: any = null;
+  function showToast(t: { msg: string; action?: string; fn?: () => void }) {
+    toast = t;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast = null; toastTimer = null; }, 5500);
+  }
 
   function openShareDlg(id: string) {
     shareNoteId = id;
@@ -430,6 +441,7 @@
       <h3>Notes</h3>
       <select bind:value={activeGroupId} on:change={onGroupChange}>
         <option value="">All</option>
+        <option value="__trash__">Trash</option>
         {#each groups as g}
           <option value={g.id}>{g.name}</option>
         {/each}
@@ -585,11 +597,17 @@
           {/if}
         </button>
 
-        <button class="trash" type="button" title="Delete" aria-label="Delete" on:click={async () => {
+        <button class="trash" type="button" title="Trash" aria-label="Trash" on:click={async () => {
           if (!selectedId) return;
           if (!confirm('Move this note to trash?')) return;
+          const id = selectedId;
           try {
-            await deleteNote(selectedId);
+            await deleteNote(id);
+            showToast({
+              msg: 'Moved to Trash',
+              action: 'Undo',
+              fn: async () => { try { await restoreNote(id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
+            });
             await refresh();
             closeEditor();
           } catch (e:any) {
@@ -680,6 +698,15 @@
     {/if}
   </div>
 </div>
+
+{#if toast}
+  <div class="toast" role="status">
+    <div class="toastMsg">{toast.msg}</div>
+    {#if toast.action && toast.fn}
+      <button class="toastBtn" type="button" on:click={() => { const fn = toast?.fn; toast = null; fn && fn(); }}> {toast.action} </button>
+    {/if}
+  </div>
+{/if}
 
 {#if shareDlgOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -858,4 +885,8 @@
   .row3 label { font-size: 12px; color: var(--muted); }
   .actions { display:flex; gap: 8px; margin-top: 12px; }
   .btnGhost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+  .toast { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 10px 12px; display:flex; gap: 10px; align-items:center; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  .toastMsg { color: var(--text); font-size: 13px; }
+  .toastBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
 </style>
