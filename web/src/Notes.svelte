@@ -602,26 +602,7 @@
         </button>
       </div>
 
-      <div class="metaRow">
-        <div class="field">
-          <label for="note-group">Group</label>
-          <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
-            const v = (e.currentTarget as HTMLSelectElement).value;
-            if (!selectedId || version === null) return;
-            try {
-              const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
-              version = updated.version;
-              // stick to the note's new group
-              activeGroupId = updated.group_id || '';
-              await refresh();
-            } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
-          }}>
-            {#each groups as g}
-              <option value={g.id}>{g.name}</option>
-            {/each}
-          </select>
-        </div>
-      </div>
+      <!-- Group picker moved below -->
 
       {#if viewMode === 'edit'}
         <div class="mdbar" aria-label="Markdown tools">
@@ -668,6 +649,27 @@
           <div class="hint">(Share changes autosave.)</div>
         </div>
       </details>
+
+      <div class="metaRow">
+        <div class="field">
+          <label for="note-group">Group</label>
+          <select id="note-group" value={activeGroupId || ''} on:change={async (e)=>{
+            const v = (e.currentTarget as HTMLSelectElement).value;
+            if (!selectedId || version === null) return;
+            try {
+              const updated = await patchNote(selectedId, { group_id: v || null, if_version: version });
+              version = updated.version;
+              // stick to the note's new group
+              activeGroupId = updated.group_id || '';
+              await refresh();
+            } catch (e2:any) { err = e2?.message || String(e2); await refresh(); }
+          }}>
+            {#each groups as g}
+              <option value={g.id}>{g.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
     {:else}
       <div class="empty">Select a note or create one.</div>
     {/if}
