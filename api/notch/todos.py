@@ -290,6 +290,21 @@ def patch_todo(*, p: Principal, todo_id: str, payload: dict) -> dict[str, Any]:
         if if_version is not None and int(cur.get("version") or 0) != if_version:
             raise HTTPException(status_code=409, detail="Version conflict")
 
+        # If remind_at is changed, clear remind_sent_at so it can notify again.
+        if "remind_at" in fields:
+            old = cur.get("remind_at")
+            new = fields.get("remind_at")
+            try:
+                old_i = None if old is None else int(old)
+            except Exception:
+                old_i = None
+            try:
+                new_i = None if new is None else int(new)
+            except Exception:
+                new_i = None
+            if old_i != new_i:
+                fields["remind_sent_at"] = None
+
         sets = []
         params: list[Any] = []
         for k, v in fields.items():
