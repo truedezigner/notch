@@ -178,6 +178,32 @@ def delete_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
     return {"ok": True, "deleted": True, "id": todo_id}
 
 
+def purge_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
+    """Permanently delete a todo.
+
+    By default this is only used from the Trash view.
+    Permissions: any user who can see the todo (creator/assignee/shared) may purge.
+    """
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+        if not _can_see(p.user["id"], cur):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # Only allow purge from Trash (safety)
+        if cur.get("deleted_at") is None:
+            raise HTTPException(status_code=409, detail="Todo is not in Trash")
+
+        con.execute("DELETE FROM todos WHERE id=?", (todo_id,))
+
+    return {"ok": True, "purged": True, "id": todo_id}
+
+
 def restore_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")

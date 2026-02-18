@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Tuesday integration
     SERVICE_TOKEN: str
+    SERVICE_USER_HANDLE: str | None = None
 
     # NTFY
     NTFY_BASE_URL: str = "http://192.168.29.228:8082"

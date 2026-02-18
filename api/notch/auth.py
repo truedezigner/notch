@@ -67,7 +67,24 @@ def require_principal(authorization: str | None = Header(default=None)) -> Princ
 
     # Service token for Tuesday integration
     if token == settings.SERVICE_TOKEN:
-        return Principal(kind="service", user=None)
+        # For convenience, let the service token act as a real user.
+        # This avoids having to special-case every endpoint.
+        with tx() as con:
+            row = None
+            if settings.SERVICE_USER_HANDLE:
+                row = con.execute(
+                    "SELECT id,handle,display_name FROM users WHERE handle=?",
+                    (settings.SERVICE_USER_HANDLE.strip().lower(),),
+                ).fetchone()
+            if not row:
+                # Fallback: first user ever created (bootstrap/admin user)
+                row = con.execute(
+                    "SELECT id,handle,display_name FROM users ORDER BY created_at ASC LIMIT 1"
+                ).fetchone()
+            if not row:
+                raise HTTPException(status_code=503, detail="No users exist yet; bootstrap Notch first")
+            user = dict(row)
+        return Principal(kind="user", user=user)
 
     # Otherwise treat as user session token
     user = get_user_by_session(token)

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Todo, TodoList } from './api';
-  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, setToken } from './api';
+  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, purgeTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
@@ -109,6 +109,49 @@
     }
   }
 
+  let purgeTimer: any = null;
+  let purgeCountdown = 0;
+  let purgeTodoId: string | null = null;
+
+  function cancelPurge() {
+    if (purgeTimer) clearInterval(purgeTimer);
+    purgeTimer = null;
+    purgeCountdown = 0;
+    purgeTodoId = null;
+  }
+
+  async function startPurge(todo: Todo) {
+    // Only from Trash view
+    if (activeListId !== '__trash__') return;
+
+    const isShared = (todo.shared_with?.length || 0) > 0 || (todo.assigned_to && todo.assigned_to !== todo.created_by);
+    if (isShared) {
+      if (!confirm('This todo appears shared/assigned. Permanently delete for everyone?')) {
+        return;
+      }
+    }
+
+    // (Re)start countdown
+    cancelPurge();
+    purgeTodoId = todo.id;
+    purgeCountdown = 5;
+
+    purgeTimer = setInterval(async () => {
+      purgeCountdown -= 1;
+      if (purgeCountdown <= 0) {
+        cancelPurge();
+        try {
+          await purgeTodo(todo.id);
+          showToast({ msg: 'Deleted permanently' });
+          await refresh();
+        } catch (e: any) {
+          err = e?.message || String(e);
+          await refresh();
+        }
+      }
+    }, 1000);
+  }
+
   async function toggle(todo: Todo) {
     const desired = !todo.done;
     // optimistic
@@ -173,12 +216,21 @@
 {#if loading}
   <div class="hint">Loading…</div>
 {:else}
+  {#if purgeTodoId && purgeCountdown > 0}
+    <div class="purgeBar">
+      Deleting in {purgeCountdown}…
+      <button type="button" class="purgeCancel" on:click={cancelPurge}>Cancel</button>
+    </div>
+  {/if}
   <ul class="list">
     {#each todos as t (t.id)}
       <li class="item">
         <div class="row1">
           <label class="check">
-            <input type="checkbox" checked={t.done} on:change={() => toggle(t)} />
+            <input type="checkbox" checked={t.done} on:change={() => {
+              if (activeListId === '__trash__') startPurge(t);
+              else toggle(t);
+            }} />
             <button type="button" class:done={t.done} class="titleBtn" on:click={() => {
               expandedId = expandedId === t.id ? null : t.id;
               // update URL for deep-linking
@@ -389,4 +441,7 @@
   .toast { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 10px 12px; display:flex; gap: 10px; align-items:center; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
   .toastMsg { color: var(--text); font-size: 13px; }
   .toastBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
+
+  .purgeBar { margin-top: 10px; display:flex; gap:10px; align-items:center; justify-content:space-between; padding: 10px 12px; border: 1px solid rgba(255, 107, 107, 0.35); border-radius: 12px; background: rgba(255, 107, 107, 0.08); color: var(--text); font-size: 13px; }
+  .purgeCancel { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
 </style>

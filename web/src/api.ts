@@ -111,3 +111,8 @@ export async function restoreTodo(id: string): Promise<Todo> {
   const j = await req(`/api/todos/${encodeURIComponent(id)}/restore`, { method: 'POST' });
   return j.todo as Todo;
 }
+
+export async function purgeTodo(id: string): Promise<{ ok: boolean; purged: boolean; id: string }> {
+  const j = await req(`/api/todos/${encodeURIComponent(id)}/purge`, { method: 'DELETE' });
+  return j;
+}

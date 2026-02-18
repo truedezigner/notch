@@ -295,6 +295,11 @@ async def delete_todo(todo_id: str, p: Principal = Depends(require_principal)):
     return todos_api.delete_todo(p=p, todo_id=todo_id)
 
 
+@app.delete("/api/todos/{todo_id}/purge")
+async def purge_todo(todo_id: str, p: Principal = Depends(require_principal)):
+    return todos_api.purge_todo(p=p, todo_id=todo_id)
+
+
 @app.post("/api/todos/{todo_id}/restore")
 async def restore_todo(todo_id: str, p: Principal = Depends(require_principal)):
     todo = todos_api.restore_todo(p=p, todo_id=todo_id)
