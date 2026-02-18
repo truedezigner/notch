@@ -504,13 +504,20 @@
   <div class="sidebar">
     <div class="row">
       <h3>Notes</h3>
-      <select bind:value={activeGroupId} on:change={onGroupChange}>
-        <option value="">All</option>
-        <option value="__trash__">Trash</option>
-        {#each groups as g}
-          <option value={g.id}>{g.name}</option>
-        {/each}
-      </select>
+      <div class="groupControls">
+        <select bind:value={activeGroupId} on:change={onGroupChange}>
+          <option value="">All</option>
+          <option value="__trash__">Trash</option>
+          {#each groups as g}
+            <option value={g.id}>{g.name}</option>
+          {/each}
+        </select>
+        <button class="iconBtn" type="button" title="Manage groups" aria-label="Manage groups" on:click={() => { showManageGroups = !showManageGroups; showNewGroup = false; showNewNote = false; }}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Mobile toolbar (keeps the list near the top) -->
@@ -544,11 +551,7 @@
         </svg>
       </button>
 
-      <button class="iconBtn" type="button" title="Manage groups" aria-label="Manage groups" on:click={() => { showManageGroups = !showManageGroups; showNewGroup = false; showNewNote = false; }}>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-          <path fill="currentColor" d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
-        </svg>
-      </button>
+      <!-- manage groups button moved next to dropdown -->
 
       <button class="iconBtn" type="button" title="Group sharing" aria-label="Group sharing" on:click={() => { showGroupShare = !showGroupShare; showManageGroups = false; }}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -892,6 +895,8 @@
 
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .groupControls { display:flex; align-items:center; gap:8px; }
+  .groupControls select { min-width: 180px; }
   h3 { margin: 0; }
   select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
