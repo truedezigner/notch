@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Todo, TodoList } from './api';
-  import { createTodo, createList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, purgeTodo, setToken } from './api';
+  import { createTodo, createList, deleteList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, purgeTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
@@ -15,6 +15,8 @@
   let err: string | null = null;
 
   let newListName = '';
+  let showNewList = false;
+  let showManageLists = false;
   let newTitle = '';
   let includeDone = false;
   export let initialExpandedId: string | null = null;
@@ -91,8 +93,23 @@
       lists = [...lists, lst].sort((a,b)=>a.name.localeCompare(b.name));
       activeListId = lst.id;
       newListName = '';
+      showNewList = false;
       await refresh();
     } catch (e: any) {
+      err = e?.message || String(e);
+    }
+  }
+
+  async function removeList(id: string) {
+    const l = lists.find(x => x.id === id);
+    if (!l) return;
+    if (!confirm(`Delete list "${l.name}"? Todos will be moved to Inbox.`)) return;
+    try {
+      await deleteList(id);
+      if (activeListId === id) activeListId = '';
+      await refresh();
+      showToast({ msg: `Deleted list: ${l.name}` });
+    } catch (e:any) {
       err = e?.message || String(e);
     }
   }
@@ -250,6 +267,18 @@
         <option value={l.id}>{l.name}</option>
       {/each}
     </select>
+
+    <button class="iconBtn" type="button" title="New list" aria-label="New list" on:click={() => { showNewList = !showNewList; if (showNewList) showManageLists = false; }}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z" />
+      </svg>
+    </button>
+
+    <button class="iconBtn" type="button" title="Manage lists" aria-label="Manage lists" on:click={() => { showManageLists = !showManageLists; if (showManageLists) showNewList = false; }}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+      </svg>
+    </button>
   </div>
   <div class="topRight">
     <label class="toggle"><input type="checkbox" bind:checked={includeDone} on:change={refresh} /> Show done</label>
@@ -257,10 +286,33 @@
   </div>
 </div>
 
-<div class="addList">
-  <input bind:value={newListName} placeholder="New list…" on:keydown={(e) => e.key === 'Enter' && addList()} />
-  <button on:click={addList} disabled={!newListName.trim()}>Add list</button>
-</div>
+{#if showNewList}
+  <div class="addList">
+    <input bind:value={newListName} placeholder="New list…" on:keydown={(e) => e.key === 'Enter' && addList()} />
+    <button on:click={addList} disabled={!newListName.trim()}>Add</button>
+    <button class="ghost" type="button" on:click={() => { showNewList = false; newListName=''; }}>Cancel</button>
+  </div>
+{/if}
+
+{#if showManageLists}
+  <div class="manageLists">
+    <div class="hint" style="margin:0;">Delete moves todos to Inbox. "All" and "Trash" aren’t lists.</div>
+    <ul class="mlist">
+      {#each lists as l}
+        <li class="mrow">
+          <span class="mname">{l.name}</span>
+          {#if l.name.toLowerCase() !== 'inbox'}
+            <button class="trashIcon" type="button" title="Delete list" aria-label="Delete list" on:click={() => removeList(l.id)}>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM6 9h2v9H6V9Z" />
+              </svg>
+            </button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </div>
+{/if}
 
 <div class="add">
   <input bind:value={newTitle} placeholder="New reminder…" on:keydown={(e) => e.key === 'Enter' && add()} />
@@ -463,8 +515,15 @@
   .logout { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-weight: 800; color: var(--text); }
   .logout:hover { filter: brightness(1.08); }
   .addList { display:flex; gap:8px; align-items:center; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
-.addList input { flex: 1; }
-.add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
+  .addList input { flex: 1; }
+  .manageLists { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
+  .mlist { list-style:none; padding: 0; margin: 10px 0 0; display:flex; flex-direction:column; gap:8px; }
+  .mrow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .mname { font-weight: 800; }
+  .ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .ghost:hover { filter: brightness(1.08); }
+
+  .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
   input { font: inherit; padding: 10px; border-radius: 10px; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
   button:disabled { opacity: .5; }

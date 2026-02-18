@@ -147,6 +147,11 @@ async def create_list(payload: dict, p: Principal = Depends(require_principal)):
     return {"ok": True, "list": lst}
 
 
+@app.delete("/api/lists/{list_id}")
+async def delete_list(list_id: str, p: Principal = Depends(require_principal)):
+    return lists_api.delete_list(p=p, list_id=list_id)
+
+
 # --- Todos ---
 
 @app.post("/api/todos")

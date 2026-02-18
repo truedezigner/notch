@@ -78,6 +78,11 @@ export async function createList(name: string): Promise<TodoList> {
   return j.list;
 }
 
+export async function deleteList(id: string): Promise<{ ok: boolean; deleted: boolean; id: string; moved_todos_to?: string }> {
+  const j = await req(`/api/lists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return j;
+}
+
 export async function listTodos(includeDone = false, listId?: string | null, opts: { deleted_only?: boolean } = {}): Promise<Todo[]> {
   const qs = new URLSearchParams();
   qs.set('include_done', includeDone ? '1' : '0');

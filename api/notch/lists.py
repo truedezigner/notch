@@ -74,6 +74,43 @@ def create_list(*, p: Principal, payload: dict) -> dict[str, Any]:
     return _row_to_list(dict(row))
 
 
+def delete_list(*, p: Principal, list_id: str) -> dict[str, Any]:
+    """Delete a todo list without deleting its todos.
+
+    Todos are reassigned to the user's Inbox list.
+    Only the list creator may delete.
+    """
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    # Ensure Inbox exists
+    inbox = ensure_default_list(p.user["id"])
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM todo_lists WHERE id=?", (str(list_id),)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can delete")
+
+        # Don't allow deleting Inbox itself
+        if str(cur.get("id")) == str(inbox.get("id")) or str(cur.get("name") or "").strip().lower() == "inbox":
+            raise HTTPException(status_code=409, detail="Cannot delete Inbox")
+
+        # Reassign todos first
+        con.execute(
+            "UPDATE todos SET list_id=?, updated_at=? WHERE list_id=?",
+            (str(inbox["id"]), now(), str(list_id)),
+        )
+
+        # Delete list
+        con.execute("DELETE FROM todo_lists WHERE id=?", (str(list_id),))
+
+    return {"ok": True, "deleted": True, "id": str(list_id), "moved_todos_to": inbox.get("id")}
+
+
 def list_lists(*, p: Principal) -> list[dict[str, Any]]:
     if p.kind != "user":
         raise HTTPException(status_code=403, detail="User session required")
