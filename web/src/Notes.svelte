@@ -44,6 +44,9 @@
   let showSearch = false;
   let showNewNote = false;
   let showNewGroup = false;
+  let showManageGroups = false;
+  let editingGroupId: string | null = null;
+  let editingGroupName = '';
   let showGroupShare = false;
 
   let saveStatus: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' = 'idle';
@@ -384,6 +387,32 @@
     (bodyEl || titleEl)?.focus();
   }
 
+  function beginEditGroup(g: NoteGroup) {
+    editingGroupId = g.id;
+    editingGroupName = g.name || '';
+  }
+
+  async function saveEditGroup() {
+    if (!editingGroupId) return;
+    const name = editingGroupName.trim();
+    if (!name) return;
+    try {
+      const updated = await patchNoteGroup(editingGroupId, { name });
+      groups = groups.map(x => x.id === updated.id ? updated : x).sort((a,b)=>a.name.localeCompare(b.name));
+      // Keep current selection by ID
+      editingGroupId = null;
+      editingGroupName = '';
+      await refresh();
+    } catch (e:any) {
+      err = e?.message || String(e);
+    }
+  }
+
+  function cancelEditGroup() {
+    editingGroupId = null;
+    editingGroupName = '';
+  }
+
   async function addGroup() {
     const name = newGroupName.trim();
     if (!name) return;
@@ -505,6 +534,7 @@
 
       <button class="iconBtn" type="button" title="New group" aria-label="New group" on:click={async () => {
         showNewGroup = !showNewGroup;
+        showManageGroups = false;
         showNewNote = false;
         await tick();
         newGroupEl?.focus();
@@ -514,7 +544,13 @@
         </svg>
       </button>
 
-      <button class="iconBtn" type="button" title="Group sharing" aria-label="Group sharing" on:click={() => { showGroupShare = !showGroupShare; }}>
+      <button class="iconBtn" type="button" title="Manage groups" aria-label="Manage groups" on:click={() => { showManageGroups = !showManageGroups; showNewGroup = false; showNewNote = false; }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+        </svg>
+      </button>
+
+      <button class="iconBtn" type="button" title="Group sharing" aria-label="Group sharing" on:click={() => { showGroupShare = !showGroupShare; showManageGroups = false; }}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
           <path fill="currentColor" d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3ZM8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h7v-2.5C24 14.17 18.33 13 16 13Z"/>
         </svg>
@@ -522,6 +558,41 @@
     </div>
 
     <div class="controls">
+      {#if showManageGroups}
+        <div class="manageLists">
+          <div class="hint" style="margin:0;">Rename groups here. "All" and "Trash" aren’t groups.</div>
+          <ul class="mlist">
+            {#each groups as g}
+              <li class="mrow">
+                {#if editingGroupId === g.id}
+                  <input class="medit" bind:value={editingGroupName} on:keydown={(e) => e.key === 'Enter' && saveEditGroup()} />
+                  <div class="mactions">
+                    <button class="iconBtn" type="button" title="Save" aria-label="Save" on:click={saveEditGroup}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z" />
+                      </svg>
+                    </button>
+                    <button class="iconBtn" type="button" title="Cancel" aria-label="Cancel" on:click={cancelEditGroup}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z" />
+                      </svg>
+                    </button>
+                  </div>
+                {:else}
+                  <span class="mname">{g.name}</span>
+                  <div class="mactions">
+                    <button class="iconBtn" type="button" title="Rename" aria-label="Rename" on:click={() => beginEditGroup(g)}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08ZM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
       {#if showNewGroup}
         <div class="addRow">
           <input bind:this={newGroupEl} bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
