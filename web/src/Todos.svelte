@@ -120,6 +120,12 @@
     purgeSelected = new Set<string>();
   }
 
+  function _stopCountdownOnly() {
+    if (purgeTimer) clearInterval(purgeTimer);
+    purgeTimer = null;
+    purgeCountdown = 0;
+  }
+
   function _resetCountdown() {
     if (purgeTimer) clearInterval(purgeTimer);
     purgeCountdown = 5;
@@ -128,17 +134,19 @@
       if (purgeCountdown <= 0) {
         // snapshot selected ids at execution time
         const ids = Array.from(purgeSelected);
-        cancelPurge();
-        try {
-          for (const id of ids) {
-            await purgeTodo(id);
-          }
-          showToast({ msg: `Deleted ${ids.length} permanently` });
-          await refresh();
-        } catch (e: any) {
-          err = e?.message || String(e);
-          await refresh();
+        _stopCountdownOnly();
+
+        const results = await Promise.allSettled(ids.map(id => purgeTodo(id)));
+        const okN = results.filter(r => r.status === 'fulfilled').length;
+        const fail = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+
+        if (fail.length) {
+          err = `Failed to delete ${fail.length} of ${ids.length}: ${String(fail[0]?.reason?.message || fail[0]?.reason || '')}`.trim();
         }
+
+        purgeSelected = new Set<string>();
+        showToast({ msg: `Deleted ${okN} permanently` });
+        await refresh();
       }
     }, 1000);
   }
