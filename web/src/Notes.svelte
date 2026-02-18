@@ -895,8 +895,10 @@
 
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  .groupControls { display:flex; align-items:center; gap:8px; }
-  .groupControls select { min-width: 180px; }
+  /* Make the group dropdown + manage button fill the header space neatly */
+  .groupControls { display:flex; align-items:center; gap:8px; flex: 1; justify-content: flex-end; }
+  .groupControls select { flex: 1; min-width: 0; }
+  .groupControls .iconBtn { padding: 8px 10px; }
   h3 { margin: 0; }
   select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
@@ -991,4 +993,12 @@
   .toast { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 10px 12px; display:flex; gap: 10px; align-items:center; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
   .toastMsg { color: var(--text); font-size: 13px; }
   .toastBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
+
+  /* Mirror the nicer list manager styles from Todos */
+  .manageLists { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.02); margin-top: 10px; }
+  .mlist { list-style:none; padding: 0; margin: 10px 0 0; display:flex; flex-direction:column; gap:8px; }
+  .mrow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .mname { font-weight: 800; }
+  .mactions { display:flex; align-items:center; gap:8px; }
+  .medit { flex: 1; min-width: 220px; }
 </style>
