@@ -60,11 +60,14 @@ async def _notify_for_todo(todo: dict) -> None:
     todo_id = todo["id"]
 
     # Determine recipients (user ids)
-    recipients: list[str] = []
+    # If assigned_to is set AND shared_with has entries, notify everyone.
+    recipients_set: set[str] = set()
     if todo.get("assigned_to"):
-        recipients = [todo["assigned_to"]]
-    else:
-        recipients = _loads_list(todo.get("shared_with"))
+        recipients_set.add(str(todo["assigned_to"]))
+    for uid in _loads_list(todo.get("shared_with")):
+        if uid:
+            recipients_set.add(str(uid))
+    recipients: list[str] = [r for r in recipients_set if r]
 
     # If nobody to notify, mark sent so we don't loop.
     if not recipients:
