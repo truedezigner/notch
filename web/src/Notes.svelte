@@ -512,50 +512,11 @@
             <option value={g.id}>{g.name}</option>
           {/each}
         </select>
-        <button class="iconBtn" type="button" title="Manage groups" aria-label="Manage groups" aria-expanded={showManageGroups} on:click={() => { showManageGroups = !showManageGroups; showNewGroup = false; showNewNote = false; }}>
+        <button class="iconBtn" type="button" title="Manage groups" aria-label="Manage groups" on:click={() => { showManageGroups = !showManageGroups; showNewGroup = false; showNewNote = false; }}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
           </svg>
         </button>
-
-        {#if showManageGroups}
-          <div class="managePopover" role="dialog" aria-label="Manage groups">
-            <div class="hint" style="margin:0;">Rename groups here. "All" and "Trash" aren’t groups.</div>
-            <ul class="mlist">
-              {#each groups as g}
-                <li class="mrow">
-                  {#if editingGroupId === g.id}
-                    <input class="medit" bind:value={editingGroupName} on:keydown={(e) => e.key === 'Enter' && saveEditGroup()} />
-                    <div class="mactions">
-                      <button class="iconBtn" type="button" title="Save" aria-label="Save" on:click={saveEditGroup}>
-                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z" />
-                        </svg>
-                      </button>
-                      <button class="iconBtn" type="button" title="Cancel" aria-label="Cancel" on:click={cancelEditGroup}>
-                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z" />
-                        </svg>
-                      </button>
-                    </div>
-                  {:else}
-                    <span class="mname">{g.name}</span>
-                    <div class="mactions">
-                      <button class="iconBtn" type="button" title="Rename" aria-label="Rename" on:click={() => beginEditGroup(g)}>
-                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08ZM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"/>
-                        </svg>
-                      </button>
-                    </div>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-            <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-              <button class="btnGhost" type="button" on:click={() => { showManageGroups = false; editingGroupId=null; editingGroupName=''; }}>Close</button>
-            </div>
-          </div>
-        {/if}
       </div>
     </div>
 
@@ -600,6 +561,41 @@
     </div>
 
     <div class="controls">
+      {#if showManageGroups}
+        <div class="manageLists">
+          <div class="hint" style="margin:0;">Rename groups here. "All" and "Trash" aren’t groups.</div>
+          <ul class="mlist">
+            {#each groups as g}
+              <li class="mrow">
+                {#if editingGroupId === g.id}
+                  <input class="medit" bind:value={editingGroupName} on:keydown={(e) => e.key === 'Enter' && saveEditGroup()} />
+                  <div class="mactions">
+                    <button class="iconBtn" type="button" title="Save" aria-label="Save" on:click={saveEditGroup}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z" />
+                      </svg>
+                    </button>
+                    <button class="iconBtn" type="button" title="Cancel" aria-label="Cancel" on:click={cancelEditGroup}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z" />
+                      </svg>
+                    </button>
+                  </div>
+                {:else}
+                  <span class="mname">{g.name}</span>
+                  <div class="mactions">
+                    <button class="iconBtn" type="button" title="Rename" aria-label="Rename" on:click={() => beginEditGroup(g)}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08ZM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
       {#if showNewGroup}
         <div class="addRow">
           <input bind:this={newGroupEl} bind:value={newGroupName} placeholder="New group…" on:keydown={(e)=>e.key==='Enter'&&addGroup()} />
@@ -900,12 +896,9 @@
   .sidebar { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   /* Make the group dropdown + manage button fill the header space neatly */
-  .groupControls { display:flex; align-items:center; gap:6px; flex: 1; justify-content: flex-end; position: relative; }
+  .groupControls { display:flex; align-items:center; gap:8px; flex: 1; justify-content: flex-end; }
   .groupControls select { flex: 1; min-width: 0; }
   .groupControls .iconBtn { padding: 8px 10px; }
-
-  /* Popover for managing groups (anchored to dropdown) */
-  .managePopover { position: absolute; top: calc(100% + 8px); right: 0; width: min(520px, 92vw); max-width: 520px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 12px; z-index: 40; box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
   h3 { margin: 0; }
   select, input, textarea { padding: 10px; border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
@@ -1002,6 +995,7 @@
   .toastBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 999px; font-weight: 900; }
 
   /* Mirror the nicer list manager styles from Todos */
+  .manageLists { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.02); margin-top: 10px; }
   .mlist { list-style:none; padding: 0; margin: 10px 0 0; display:flex; flex-direction:column; gap:8px; }
   .mrow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .mname { font-weight: 800; }
