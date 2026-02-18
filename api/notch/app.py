@@ -147,6 +147,12 @@ async def create_list(payload: dict, p: Principal = Depends(require_principal)):
     return {"ok": True, "list": lst}
 
 
+@app.patch("/api/lists/{list_id}")
+async def patch_list(list_id: str, payload: dict, p: Principal = Depends(require_principal)):
+    lst = lists_api.patch_list(p=p, list_id=list_id, payload=payload)
+    return {"ok": True, "list": lst}
+
+
 @app.delete("/api/lists/{list_id}")
 async def delete_list(list_id: str, p: Principal = Depends(require_principal)):
     return lists_api.delete_list(p=p, list_id=list_id)

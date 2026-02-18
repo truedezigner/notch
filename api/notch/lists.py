@@ -74,6 +74,63 @@ def create_list(*, p: Principal, payload: dict) -> dict[str, Any]:
     return _row_to_list(dict(row))
 
 
+def patch_list(*, p: Principal, list_id: str, payload: dict) -> dict[str, Any]:
+    """Rename/update a todo list.
+
+    List IDs are stable, so renaming does not orphan any todos.
+    Only the list creator may edit.
+    """
+    if p.kind != "user":
+        raise HTTPException(status_code=403, detail="User session required")
+
+    name = payload.get("name")
+    if name is not None:
+        name = str(name).strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Missing name")
+
+    shared_with = payload.get("shared_with")
+    if shared_with is not None and not isinstance(shared_with, list):
+        raise HTTPException(status_code=400, detail="shared_with must be list")
+
+    # Ensure Inbox exists
+    inbox = ensure_default_list(p.user["id"])
+
+    with tx() as con:
+        row = con.execute("SELECT * FROM todo_lists WHERE id=?", (str(list_id),)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        cur = dict(row)
+
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can edit")
+
+        # Don't allow renaming Inbox itself
+        if str(cur.get("id")) == str(inbox.get("id")) or str(cur.get("name") or "").strip().lower() == "inbox":
+            raise HTTPException(status_code=409, detail="Cannot rename Inbox")
+
+        sets = []
+        params: list[Any] = []
+        if name is not None:
+            sets.append("name=?")
+            params.append(name)
+        if shared_with is not None:
+            sets.append("shared_with=?")
+            params.append(_dumps_list([str(x) for x in shared_with]))
+
+        if not sets:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        sets.append("updated_at=?")
+        params.append(now())
+        params.append(str(list_id))
+
+        con.execute(f"UPDATE todo_lists SET {', '.join(sets)} WHERE id=?", params)
+        row2 = con.execute("SELECT * FROM todo_lists WHERE id=?", (str(list_id),)).fetchone()
+
+    return _row_to_list(dict(row2))
+
+
 def delete_list(*, p: Principal, list_id: str) -> dict[str, Any]:
     """Delete a todo list without deleting its todos.
 

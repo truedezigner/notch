@@ -78,6 +78,11 @@ export async function createList(name: string): Promise<TodoList> {
   return j.list;
 }
 
+export async function patchList(id: string, patch: any): Promise<TodoList> {
+  const j = await req(`/api/lists/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  return j.list as TodoList;
+}
+
 export async function deleteList(id: string): Promise<{ ok: boolean; deleted: boolean; id: string; moved_todos_to?: string }> {
   const j = await req(`/api/lists/${encodeURIComponent(id)}`, { method: 'DELETE' });
   return j;

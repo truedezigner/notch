@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Todo, TodoList } from './api';
-  import { createTodo, createList, deleteList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, purgeTodo, setToken } from './api';
+  import { createTodo, createList, deleteList, patchList, listLists, listTodos, patchTodo, deleteTodo, restoreTodo, purgeTodo, setToken } from './api';
 
   import type { User } from './api';
   import { listUsers } from './api';
@@ -17,6 +17,8 @@
   let newListName = '';
   let showNewList = false;
   let showManageLists = false;
+  let editingListId: string | null = null;
+  let editingListName = '';
   let newTitle = '';
   let includeDone = false;
   export let initialExpandedId: string | null = null;
@@ -98,6 +100,31 @@
     } catch (e: any) {
       err = e?.message || String(e);
     }
+  }
+
+  function beginEditList(l: TodoList) {
+    editingListId = l.id;
+    editingListName = l.name || '';
+  }
+
+  async function saveEditList() {
+    if (!editingListId) return;
+    const name = editingListName.trim();
+    if (!name) return;
+    try {
+      const updated = await patchList(editingListId, { name });
+      lists = lists.map(x => x.id === updated.id ? updated : x).sort((a,b)=>a.name.localeCompare(b.name));
+      // Keep current selection by ID (renames don't change id)
+      editingListId = null;
+      editingListName = '';
+    } catch (e:any) {
+      err = e?.message || String(e);
+    }
+  }
+
+  function cancelEditList() {
+    editingListId = null;
+    editingListName = '';
   }
 
   async function removeList(id: string) {
@@ -300,13 +327,36 @@
     <ul class="mlist">
       {#each lists as l}
         <li class="mrow">
-          <span class="mname">{l.name}</span>
-          {#if l.name.toLowerCase() !== 'inbox'}
-            <button class="trashIcon" type="button" title="Delete list" aria-label="Delete list" on:click={() => removeList(l.id)}>
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM6 9h2v9H6V9Z" />
-              </svg>
-            </button>
+          {#if editingListId === l.id}
+            <input class="medit" bind:value={editingListName} on:keydown={(e) => e.key === 'Enter' && saveEditList()} />
+            <div class="mactions">
+              <button class="iconBtn" type="button" title="Save" aria-label="Save" on:click={saveEditList}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z" />
+                </svg>
+              </button>
+              <button class="iconBtn" type="button" title="Cancel" aria-label="Cancel" on:click={cancelEditList}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z" />
+                </svg>
+              </button>
+            </div>
+          {:else}
+            <span class="mname">{l.name}</span>
+            {#if l.name.toLowerCase() !== 'inbox'}
+              <div class="mactions">
+                <button class="iconBtn" type="button" title="Rename" aria-label="Rename" on:click={() => beginEditList(l)}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08ZM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"/>
+                  </svg>
+                </button>
+                <button class="trashIcon" type="button" title="Delete list" aria-label="Delete list" on:click={() => removeList(l.id)}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM6 9h2v9H6V9Z" />
+                  </svg>
+                </button>
+              </div>
+            {/if}
           {/if}
         </li>
       {/each}
@@ -520,6 +570,8 @@
   .mlist { list-style:none; padding: 0; margin: 10px 0 0; display:flex; flex-direction:column; gap:8px; }
   .mrow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .mname { font-weight: 800; }
+  .mactions { display:flex; align-items:center; gap:8px; }
+  .medit { flex: 1; min-width: 220px; }
   .ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
   .ghost:hover { filter: brightness(1.08); }
 
