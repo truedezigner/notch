@@ -109,15 +109,28 @@
     }
   }
 
+  // Trash view: permanent purge countdown (multi-select)
   let purgeTimer: any = null;
   let purgeCountdown = 0;
   let purgeSelected = new Set<string>();
+
+  // Normal view: move-to-trash countdown (single target)
+  let trashTimer: any = null;
+  let trashCountdown = 0;
+  let trashTodoId: string | null = null;
 
   function cancelPurge() {
     if (purgeTimer) clearInterval(purgeTimer);
     purgeTimer = null;
     purgeCountdown = 0;
     purgeSelected = new Set<string>();
+  }
+
+  function cancelTrashCountdown() {
+    if (trashTimer) clearInterval(trashTimer);
+    trashTimer = null;
+    trashCountdown = 0;
+    trashTodoId = null;
   }
 
   function _stopCountdownOnly() {
@@ -147,6 +160,32 @@
         purgeSelected = new Set<string>();
         showToast({ msg: `Deleted ${okN} permanently` });
         await refresh();
+      }
+    }, 1000);
+  }
+
+  async function startTrashCountdown(todo: Todo) {
+    if (activeListId === '__trash__') return;
+    cancelTrashCountdown();
+    trashTodoId = todo.id;
+    trashCountdown = 3;
+    trashTimer = setInterval(async () => {
+      trashCountdown -= 1;
+      if (trashCountdown <= 0) {
+        cancelTrashCountdown();
+        try {
+          await deleteTodo(todo.id);
+          expandedId = null;
+          showToast({
+            msg: 'Moved to Trash',
+            action: 'Undo',
+            fn: async () => { try { await restoreTodo(todo.id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
+          });
+          await refresh();
+        } catch (e:any) {
+          err = e?.message || String(e);
+          await refresh();
+        }
       }
     }, 1000);
   }
@@ -235,10 +274,17 @@
 {#if loading}
   <div class="hint">Loading…</div>
 {:else}
-  {#if purgeSelected.size > 0 && purgeCountdown > 0}
+  {#if activeListId === '__trash__' && purgeSelected.size > 0 && purgeCountdown > 0}
     <div class="purgeBar">
       <div>Deleting {purgeSelected.size} in {purgeCountdown}…</div>
       <button type="button" class="purgeCancel" on:click={cancelPurge}>Cancel</button>
+    </div>
+  {/if}
+
+  {#if activeListId !== '__trash__' && trashTodoId && trashCountdown > 0}
+    <div class="purgeBar">
+      <div>Moving to Trash in {trashCountdown}…</div>
+      <button type="button" class="purgeCancel" on:click={cancelTrashCountdown}>Cancel</button>
     </div>
   {/if}
   <ul class="list">
@@ -294,19 +340,11 @@
                 </svg>
               </button>
 
-              <button class="trash" type="button" on:click={async () => {
-                if (!confirm('Move this todo to trash?')) return;
-                try {
-                  await deleteTodo(t.id);
-                  expandedId = null;
-                  showToast({
-                    msg: 'Moved to Trash',
-                    action: 'Undo',
-                    fn: async () => { try { await restoreTodo(t.id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
-                  });
-                  await refresh();
-                } catch (err2:any) { err = err2?.message || String(err2); }
-              }}>Trash</button>
+              <button class="trashIcon" type="button" title="Move to Trash" aria-label="Move to Trash" on:click={() => startTrashCountdown(t)}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM6 9h2v9H6V9Z" />
+                </svg>
+              </button>
             {/if}
           </div>
         </div>
@@ -445,8 +483,8 @@
   .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; display:inline-flex; align-items:center; justify-content:center; }
   /* dots (removed) */
 
-  .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); }
-  .trash:hover { filter: brightness(1.08); }
+  .trashIcon { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); padding: 6px 10px; border-radius: 10px; font-weight: 800; display:inline-flex; align-items:center; justify-content:center; }
+  .trashIcon:hover { filter: brightness(1.08); }
   .field { display:flex; flex-direction:column; gap: 6px; }
   .shareBox { display:flex; flex-direction:column; gap:6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
   .shareRow { display:flex; gap:8px; align-items:center; font-size: 13px; color: var(--text); }

@@ -295,6 +295,42 @@
     toastTimer = setTimeout(() => { toast = null; toastTimer = null; }, 5500);
   }
 
+  // move-to-trash countdown (no confirm)
+  let noteTrashTimer: any = null;
+  let noteTrashCountdown = 0;
+  let noteTrashId: string | null = null;
+
+  function cancelNoteTrash() {
+    if (noteTrashTimer) clearInterval(noteTrashTimer);
+    noteTrashTimer = null;
+    noteTrashCountdown = 0;
+    noteTrashId = null;
+  }
+
+  function startNoteTrashCountdown(id: string) {
+    cancelNoteTrash();
+    noteTrashId = id;
+    noteTrashCountdown = 3;
+    noteTrashTimer = setInterval(async () => {
+      noteTrashCountdown -= 1;
+      if (noteTrashCountdown <= 0) {
+        cancelNoteTrash();
+        try {
+          await deleteNote(id);
+          showToast({
+            msg: 'Moved to Trash',
+            action: 'Undo',
+            fn: async () => { try { await restoreNote(id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
+          });
+          await refresh();
+          closeEditor();
+        } catch (e:any) {
+          err = e?.message || String(e);
+        }
+      }
+    }, 1000);
+  }
+
   function openShareDlg(id: string) {
     shareNoteId = id;
     shareDlgOpen = true;
@@ -571,6 +607,9 @@
   <div class="editor">
     {#if selectedId}
       <div class="head">
+        {#if noteTrashId && noteTrashCountdown > 0}
+          <div class="trashCountdown">Moving to Trash in {noteTrashCountdown}… <button type="button" class="trashCancel" on:click={cancelNoteTrash}>Cancel</button></div>
+        {/if}
         <button class="back" type="button" on:click={closeEditor}>Back</button>
         <input class="title" bind:this={titleEl} bind:value={title} placeholder="Title" on:input={markDirty} />
         <div class="status">
@@ -597,23 +636,7 @@
           {/if}
         </button>
 
-        <button class="trash" type="button" title="Trash" aria-label="Trash" on:click={async () => {
-          if (!selectedId) return;
-          if (!confirm('Move this note to trash?')) return;
-          const id = selectedId;
-          try {
-            await deleteNote(id);
-            showToast({
-              msg: 'Moved to Trash',
-              action: 'Undo',
-              fn: async () => { try { await restoreNote(id); await refresh(); } catch (e2:any) { err = e2?.message || String(e2); } }
-            });
-            await refresh();
-            closeEditor();
-          } catch (e:any) {
-            err = e?.message || String(e);
-          }
-        }}>
+        <button class="trash" type="button" title="Trash" aria-label="Trash" on:click={() => { if (selectedId) startNoteTrashCountdown(selectedId); }}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v10h-2V9Zm4 0h2v10h-2V9ZM7 9h2v10H7V9Z" />
           </svg>
@@ -833,6 +856,9 @@
 
   .trash { background: transparent; border: 1px solid rgba(255, 107, 107, 0.55); color: var(--danger); display:inline-flex; align-items:center; justify-content:center; }
   .trash:hover { filter: brightness(1.08); }
+
+  .trashCountdown { font-size: 12px; color: var(--muted); display:flex; align-items:center; gap:8px; }
+  .trashCancel { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 999px; font-weight: 900; }
   .detailsRow { margin-top: 12px; display:grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: start; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
   @media (max-width: 900px){ .detailsRow { grid-template-columns: 1fr; } }
 
