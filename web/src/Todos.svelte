@@ -111,38 +111,29 @@
 
   let purgeTimer: any = null;
   let purgeCountdown = 0;
-  let purgeTodoId: string | null = null;
+  let purgeSelected = new Set<string>();
 
   function cancelPurge() {
     if (purgeTimer) clearInterval(purgeTimer);
     purgeTimer = null;
     purgeCountdown = 0;
-    purgeTodoId = null;
+    purgeSelected = new Set<string>();
   }
 
-  async function startPurge(todo: Todo) {
-    // Only from Trash view
-    if (activeListId !== '__trash__') return;
-
-    const isShared = (todo.shared_with?.length || 0) > 0 || (todo.assigned_to && todo.assigned_to !== todo.created_by);
-    if (isShared) {
-      if (!confirm('This todo appears shared/assigned. Permanently delete for everyone?')) {
-        return;
-      }
-    }
-
-    // (Re)start countdown
-    cancelPurge();
-    purgeTodoId = todo.id;
+  function _resetCountdown() {
+    if (purgeTimer) clearInterval(purgeTimer);
     purgeCountdown = 5;
-
     purgeTimer = setInterval(async () => {
       purgeCountdown -= 1;
       if (purgeCountdown <= 0) {
+        // snapshot selected ids at execution time
+        const ids = Array.from(purgeSelected);
         cancelPurge();
         try {
-          await purgeTodo(todo.id);
-          showToast({ msg: 'Deleted permanently' });
+          for (const id of ids) {
+            await purgeTodo(id);
+          }
+          showToast({ msg: `Deleted ${ids.length} permanently` });
           await refresh();
         } catch (e: any) {
           err = e?.message || String(e);
@@ -150,6 +141,26 @@
         }
       }
     }, 1000);
+  }
+
+  async function toggleTrashPurge(todo: Todo) {
+    // Only from Trash view
+    if (activeListId !== '__trash__') return;
+
+    const next = new Set(purgeSelected);
+    if (next.has(todo.id)) next.delete(todo.id);
+    else next.add(todo.id);
+
+    purgeSelected = next;
+
+    // If nothing selected, stop.
+    if (purgeSelected.size === 0) {
+      cancelPurge();
+      return;
+    }
+
+    // Start/restart countdown on any change (you said this part feels great)
+    _resetCountdown();
   }
 
   async function toggle(todo: Todo) {
@@ -216,9 +227,9 @@
 {#if loading}
   <div class="hint">Loading…</div>
 {:else}
-  {#if purgeTodoId && purgeCountdown > 0}
+  {#if purgeSelected.size > 0 && purgeCountdown > 0}
     <div class="purgeBar">
-      Deleting in {purgeCountdown}…
+      <div>Deleting {purgeSelected.size} in {purgeCountdown}…</div>
       <button type="button" class="purgeCancel" on:click={cancelPurge}>Cancel</button>
     </div>
   {/if}
@@ -227,8 +238,8 @@
       <li class="item">
         <div class="row1">
           <label class="check">
-            <input type="checkbox" checked={t.done} on:change={() => {
-              if (activeListId === '__trash__') startPurge(t);
+            <input type="checkbox" checked={activeListId === '__trash__' ? purgeSelected.has(t.id) : t.done} on:change={() => {
+              if (activeListId === '__trash__') toggleTrashPurge(t);
               else toggle(t);
             }} />
             <button type="button" class:done={t.done} class="titleBtn" on:click={() => {
