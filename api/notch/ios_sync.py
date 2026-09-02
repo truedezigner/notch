@@ -111,11 +111,41 @@ def _require_collection(con, table: str, collection_id: str, user_id: str) -> No
 
 
 def _apply_one(con, user_id: str, entity_type: str, entity_id: str, mutation: str, body: dict[str, Any], base_version: Any) -> dict[str, Any]:
+    if entity_type == "collection":
+        return _apply_collection(con, user_id, entity_id, mutation, body)
     if entity_type == "todo":
         return _apply_item(con, user_id, entity_id, mutation, body, base_version, is_note=False)
     if entity_type == "note":
         return _apply_item(con, user_id, entity_id, mutation, body, base_version, is_note=True)
-    raise HTTPException(status_code=400, detail="Only todo and note operations are supported")
+    raise HTTPException(status_code=400, detail="Unsupported entity type")
+
+
+def _apply_collection(con, user_id: str, entity_id: str, mutation: str, body: dict[str, Any]) -> dict[str, Any]:
+    kind = str(body.get("kind_raw") or "")
+    if kind not in ("todos", "notes"):
+        raise HTTPException(status_code=400, detail="Invalid collection kind")
+    table = "todo_lists" if kind == "todos" else "note_groups"
+    title = str(body.get("title") or "").strip()
+    row = con.execute(f"SELECT * FROM {table} WHERE id=?", (entity_id,)).fetchone()
+    current = dict(row) if row else None
+    if current and not _visible(user_id, current):
+        raise HTTPException(status_code=404, detail="Collection not found")
+    if mutation == "create":
+        if current:
+            return {"id": entity_id, "replayed": True}
+        if not title:
+            raise HTTPException(status_code=400, detail="Missing title")
+        timestamp = now()
+        con.execute(f"INSERT INTO {table}(id,name,created_by,shared_with,created_at,updated_at) VALUES(?,?,?,?,?,?)", (entity_id, title, user_id, "[]", timestamp, timestamp))
+        return {"id": entity_id, "created": True}
+    if not current:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    if current.get("created_by") != user_id:
+        raise HTTPException(status_code=403, detail="Only creator can edit")
+    if mutation == "update" and title:
+        con.execute(f"UPDATE {table} SET name=?,updated_at=? WHERE id=?", (title, now(), entity_id))
+        return {"id": entity_id, "updated": True}
+    raise HTTPException(status_code=400, detail="Unsupported collection mutation")
 
 
 def _apply_item(con, user_id: str, entity_id: str, mutation: str, body: dict[str, Any], base_version: Any, *, is_note: bool) -> dict[str, Any]:
