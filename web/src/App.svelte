@@ -10,6 +10,8 @@
   let authed = !!getToken();
   let currentUser: User | null = null;
   let contentVersion = 0;
+  let todoVoiceContext = { id: '', label: '' };
+  let noteVoiceContext = { id: '', label: '' };
   let route = '';
   let tab: 'todos' | 'notes' | 'admin' = 'todos';
   let todoId: string | null = null;
@@ -65,15 +67,20 @@
         <button class:active={tab==='admin'} on:click={() => goto('admin')}>Admin</button>
       {/if}
       {#if tab !== 'admin'}
-        <VoiceCapture defaultMode={tab === 'notes' ? 'note' : 'todo'} onSaved={() => { contentVersion += 1; }} />
+        <VoiceCapture
+          defaultMode={tab === 'notes' ? 'note' : 'todo'}
+          defaultTodoListId={todoVoiceContext.id || null}
+          defaultNoteGroupId={noteVoiceContext.id || null}
+          onSaved={() => { contentVersion += 1; }}
+        />
       {/if}
     </div>
 
     {#key `${tab}:${contentVersion}`}
       {#if tab === 'todos'}
-        <Todos initialExpandedId={todoId} />
+        <Todos initialExpandedId={todoId} onVoiceContextChange={(context) => { todoVoiceContext = context; }} />
       {:else if tab === 'notes'}
-        <Notes initialSelectedId={noteId} />
+        <Notes initialSelectedId={noteId} onVoiceContextChange={(context) => { noteVoiceContext = context; }} />
       {:else}
         {#if currentUser}
           <Admin me={currentUser} />

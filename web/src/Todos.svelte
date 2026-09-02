@@ -22,6 +22,7 @@
   let newTitle = '';
   let includeDone = false;
   export let initialExpandedId: string | null = null;
+  export let onVoiceContextChange: (context: { id: string; label: string }) => void = () => {};
   let expandedId: string | null = null;
 
   let toast: { msg: string; action?: string; fn?: () => void } | null = null;
@@ -36,6 +37,13 @@
     if (!id) return '';
     const l = lists.find(x => x.id === id);
     return l ? l.name : '';
+  }
+
+  function publishVoiceContext() {
+    const current = activeListId && activeListId !== '__trash__'
+      ? lists.find((list) => list.id === activeListId)
+      : null;
+    onVoiceContextChange({ id: current?.id || '', label: current?.name || '' });
   }
 
   const voiceCategories = new Set(['Clothing', 'Toiletries', 'Electronics', 'Kids', 'Food', 'Documents', 'Medicine']);
@@ -83,6 +91,7 @@
       // Default to All lists so shared todos show up even if their list isn't shared.
       const trash = activeListId === '__trash__';
       todos = await listTodos(includeDone, trash ? null : (activeListId || null), { deleted_only: trash });
+      publishVoiceContext();
       if (initialExpandedId) {
         const found = todos.find(t => t.id === initialExpandedId);
         if (found) expandedId = initialExpandedId;
@@ -294,7 +303,7 @@
 <div class="top">
   <div class="topLeft">
     <h3>Todos</h3>
-    <select class="listSel" bind:value={activeListId} on:change={refresh}>
+    <select class="listSel" bind:value={activeListId} on:change={() => { publishVoiceContext(); refresh(); }}>
       <option value="">All</option>
       <option value="__trash__">Trash</option>
       {#each lists as l}

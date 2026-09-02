@@ -31,9 +31,12 @@ LAN-first notes + todos with per-user notifications via **ntfy**.
 
 Use **Voice add** from the Todos or Notes tab. Notch keeps the transcript editable and
 does not create anything until the final Add button is pressed. Todo speech is split on
-clear item boundaries (commas, “next item,” and action changes); connected phrases such
-as “phone charger and cable” remain together. When categories are spoken out of order,
-the preview offers to organize and label them before saving.
+clear item boundaries (commas, “next item,” repeated intentions, sentence boundaries,
+and independent action changes); connected phrases such as “phone charger and cable”
+remain together. The interpreter refreshes while speech arrives and once more when
+listening ends. Voice add defaults to the currently selected todo list or note group,
+falling back to Inbox only from All/Trash. When categories are spoken out of order, the
+preview offers to organize and label them before saving.
 
 Speech recognition comes from the browser/device. Some browsers block microphone access
 on a plain HTTP LAN address; the same preview works with the phone or keyboard dictation

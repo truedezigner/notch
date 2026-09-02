@@ -19,12 +19,26 @@ const CATEGORY_RULES = [
   ['Medicine', /\b(medicine|medications?|prescriptions?|pills?|vitamins?|inhalers?|epipens?|first aid|bandages?|tylenol|ibuprofen)\b/i]
 ];
 
+const ACTION_VERBS = [
+  'ask', 'arrange', 'book', 'bring', 'buy', 'call', 'cancel', 'charge', 'check',
+  'clean', 'collect', 'confirm', 'contact', 'drop off', 'email', 'find', 'fix',
+  'follow up', 'get', 'look up', 'make', 'order', 'pack', 'pay', 'pick up',
+  'print', 'refill', 'replace', 'request', 'research', 'reserve', 'return',
+  'schedule', 'send', 'submit', 'take', 'text', 'wash'
+];
+
+const ACTION_PATTERN = ACTION_VERBS
+  .sort((a, b) => b.length - a.length)
+  .map((verb) => verb.replace(/ /g, '\\s+'))
+  .join('|');
+
 function cleanItem(value) {
   return value
     .replace(/^\s*(?:please\s+)?(?:add|remember|remind me)\s+(?:that\s+)?/i, '')
     .replace(/^\s*(?:i|we)\s+(?:also\s+)?(?:need|want|have)\s+(?:to\s+)?/i, '')
-    .replace(/^\s*(?:also|then|and then|plus)\s+/i, '')
+    .replace(/^\s*(?:also|then|and then|and|plus)\s+/i, '')
     .replace(/^\s*(?:to|the)\s+(?=\w)/i, '')
+    .replace(/\s+please\s*$/i, '')
     .replace(/[\s.]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -41,9 +55,12 @@ export function parseTodoSpeech(transcript) {
   const normalized = String(transcript || '')
     .replace(/\b(?:next|new)\s+(?:item|thing)\b/gi, ';')
     .replace(/\b(?:first|second|third|fourth|fifth)\s+(?:item|thing)\b/gi, ';')
-    .replace(/\b(?:and\s+then|then)\s+(?=(?:call|buy|get|pick up|pack|bring|email|text|schedule|book|order|return|charge|wash|take)\b)/gi, ';')
-    .replace(/\s+(?:and|also)\s+(?=(?:call|buy|get|pick up|pack|bring|email|text|schedule|book|order|return|charge|wash|take)\b)/gi, ';')
-    .replace(/[\n,;•]+/g, ';');
+    .replace(/\s+(?:and|also|plus)\s+(?=(?:i|we)\s+(?:also\s+)?(?:need|want|have)\b)/gi, ';')
+    .replace(new RegExp(`\\b(?:and\\s+then|then)\\s+(?=(?:please\\s+)?(?:${ACTION_PATTERN})\\b)`, 'gi'), ';')
+    .replace(new RegExp(`\\s+(?:and|also|plus)\\s+(?=(?:please\\s+)?(?:${ACTION_PATTERN})\\b)`, 'gi'), ';')
+    .replace(/[\n,;•]+/g, ';')
+    .replace(/[!?]+(?:\s+|$)/g, ';')
+    .replace(/\.(?:\s+|$)/g, ';');
 
   const seen = new Set();
   return normalized

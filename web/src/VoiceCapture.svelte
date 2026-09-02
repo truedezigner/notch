@@ -12,6 +12,8 @@
   } from './voice-parser.js';
 
   export let defaultMode: 'todo' | 'note' = 'todo';
+  export let defaultTodoListId: string | null = null;
+  export let defaultNoteGroupId: string | null = null;
   export let onSaved: () => void = () => {};
 
   let open = false;
@@ -34,6 +36,8 @@
   let organize = false;
   let organizationSuggested = false;
   let addCategoryLabels = true;
+  let usingTodoContext = false;
+  let usingNoteContext = false;
 
   onMount(() => {
     speechSupported = Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -54,8 +58,12 @@
     try {
       [lists, groups] = await Promise.all([listLists(), listNoteGroups()]);
       const inbox = lists.find((list) => list.name.toLowerCase() === 'inbox');
-      targetListId = inbox?.id || lists[0]?.id || '';
-      targetGroupId = '';
+      const contextualList = lists.find((list) => list.id === defaultTodoListId);
+      const contextualGroup = groups.find((group) => group.id === defaultNoteGroupId);
+      targetListId = contextualList?.id || inbox?.id || lists[0]?.id || '';
+      targetGroupId = contextualGroup?.id || '';
+      usingTodoContext = Boolean(contextualList);
+      usingNoteContext = Boolean(contextualGroup);
     } catch (e: any) {
       err = e?.message || String(e);
     }
@@ -237,12 +245,15 @@
       {#if mode === 'todo'}
         <label class="field">
           <span>Destination list</span>
-          <select bind:value={targetListId}>
+          <select bind:value={targetListId} on:change={() => { usingTodoContext = targetListId === defaultTodoListId; }}>
             {#each lists as list}
               <option value={list.id}>{list.name}</option>
             {/each}
           </select>
         </label>
+        {#if usingTodoContext}
+          <div class="contextHint">Using the current list: <strong>{lists.find((list) => list.id === targetListId)?.name}</strong></div>
+        {/if}
 
         {#if organizationSuggested}
           <div class="organizeAsk">
@@ -279,13 +290,16 @@
       {:else}
         <label class="field">
           <span>Note group</span>
-          <select bind:value={targetGroupId}>
+          <select bind:value={targetGroupId} on:change={() => { usingNoteContext = targetGroupId === defaultNoteGroupId; }}>
             <option value="">Inbox / no group</option>
             {#each groups as group}
               <option value={group.id}>{group.name}</option>
             {/each}
           </select>
         </label>
+        {#if usingNoteContext}
+          <div class="contextHint">Using the current note group: <strong>{groups.find((group) => group.id === targetGroupId)?.name}</strong></div>
+        {/if}
         <label class="field">
           <span>Title</span>
           <input bind:value={noteTitle} placeholder="Voice note title" />
@@ -327,6 +341,7 @@
   .recordDot { width:9px; height:9px; border-radius:50%; background:#ff6969; box-shadow:0 0 0 5px rgba(255,105,105,.12); }
   .privacy { font-size:12px; color:var(--muted); }
   .notice, .organizeAsk { margin-top:12px; padding:10px 12px; border-radius:11px; font-size:13px; line-height:1.45; }
+  .contextHint { margin-top:7px; font-size:12px; color:#8fd3ff; }
   .notice { border:1px solid rgba(255, 199, 88, .3); background:rgba(255, 199, 88, .07); color:#f1d69d; }
   .organizeAsk { display:flex; flex-direction:column; gap:3px; border:1px solid rgba(93,188,255,.35); background:rgba(93,188,255,.08); }
   .field { display:flex; flex-direction:column; gap:6px; margin-top:13px; }

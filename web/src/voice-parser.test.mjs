@@ -26,6 +26,26 @@ const actions = parseTodoSpeech('I need to call the dentist and then buy toothpa
 assert.deepEqual(actions.map((item) => item.title), ['call the dentist', 'buy toothpaste', 'call the school']);
 assert.equal(categoryFor('pack the passports'), 'Documents');
 
+const screenshotPhrase = parseTodoSpeech("I want a mattress topper and ask Royal Caribbean about the cribs available on board if they're just packing please");
+assert.deepEqual(screenshotPhrase.map((item) => item.title), [
+  'a mattress topper',
+  "ask Royal Caribbean about the cribs available on board if they're just packing"
+]);
+
+assert.deepEqual(
+  parseTodoSpeech('Get milk and call the pharmacy').map((item) => item.title),
+  ['Get milk', 'call the pharmacy']
+);
+assert.deepEqual(
+  parseTodoSpeech('I need diapers and I need sunscreen').map((item) => item.title),
+  ['diapers', 'sunscreen']
+);
+assert.deepEqual(
+  parseTodoSpeech('Phone charger and cable. Toothbrush and toothpaste.').map((item) => item.title),
+  ['Phone charger and cable', 'Toothbrush and toothpaste']
+);
+assert.equal(parseTodoSpeech('toothbrush and toothpaste').length, 1);
+
 assert.deepEqual(parseSpokenNote('Title Summer plans body Book the hotel and reserve a car'), {
   title: 'Summer plans',
   body: 'Book the hotel and reserve a car'

@@ -5,6 +5,7 @@
   import { getNote, patchNote, deleteNote, restoreNote, createNote, listNotes, listNoteGroups, createNoteGroup, patchNoteGroup, createNoteShare } from './notes_api';
 
   export let initialSelectedId: string | null = null;
+  export let onVoiceContextChange: (context: { id: string; label: string }) => void = () => {};
   let handledInitial = false;
 
   export type NoteGroup = { id: string; name: string; shared_with?: string[] };
@@ -22,6 +23,12 @@
     if (!id) return '';
     const g = groups.find(x => x.id === id);
     return g ? g.name : '';
+  }
+  function publishVoiceContext() {
+    const current = activeGroupId && activeGroupId !== '__trash__'
+      ? groups.find((group) => group.id === activeGroupId)
+      : null;
+    onVoiceContextChange({ id: current?.id || '', label: current?.name || '' });
   }
   let q = '';
 
@@ -210,6 +217,7 @@
         }
         if (found) await pick(found);
       }
+      publishVoiceContext();
     } catch (e:any) {
       err = e?.message || String(e);
     } finally {
@@ -225,6 +233,7 @@
     sharedWith = [];
     version = null;
     groupSharedWith = (groups.find(g => g.id === activeGroupId)?.shared_with as any) || [];
+    publishVoiceContext();
     // Leaving a specific note view when switching filters.
     closeEditor();
     refresh();
