@@ -53,6 +53,109 @@
     return { title: match[2], category: match[1] };
   }
 
+  type PackingSection = {
+    key: string;
+    label: string;
+    items: Todo[];
+    visibleItems: Todo[];
+    done: number;
+  };
+
+  const packingSectionOrder = [
+    ['before', 'Before You Leave'],
+    ['documents', 'Documents & Money'],
+    ['carry-on', 'Embarkation Carry-On'],
+    ['port-bag', 'Port & Beach Bag'],
+    ['mom', 'Mom'],
+    ['dad', 'Dad'],
+    ['son', 'Son'],
+    ['daughter', 'Daughter'],
+    ['diapers', 'Diapers & Changing'],
+    ['sleep', 'Sleep & Comfort'],
+    ['kid-gear', 'Kid Gear & Entertainment'],
+    ['toiletries', 'Toiletries'],
+    ['medicine', 'Medicine & First Aid'],
+    ['food', 'Drinks & Snacks'],
+    ['electronics', 'Electronics'],
+    ['cabin', 'Cabin Organization'],
+    ['other', 'Other Essentials']
+  ] as const;
+
+  function isPackingList() {
+    const current = lists.find((list) => list.id === activeListId);
+    return current?.name.trim().toLowerCase() === 'packing';
+  }
+
+  function packingSectionKey(todo: Todo) {
+    const { title, category } = todoPresentation(todo.title);
+    if (title.startsWith('Before leaving —')) return 'before';
+    if (title.startsWith('Travel documents —') || title.startsWith('Money —')) return 'documents';
+    if (title.startsWith('Embarkation carry-on —')) return 'carry-on';
+    if (title.startsWith('Port/beach bag —')) return 'port-bag';
+    if (title.startsWith('Mom —')) return 'mom';
+    if (title.startsWith('Dad —')) return 'dad';
+    if (title.startsWith('Son —')) return 'son';
+    if (title.startsWith('Daughter —')) return 'daughter';
+    if (title.startsWith('Diapers/changing —')) return 'diapers';
+    if (title.startsWith('Sleep —')) return 'sleep';
+    if (title.startsWith('Kid gear —') || title.startsWith('Entertainment —')) return 'kid-gear';
+    if (title.startsWith('Cabin —')) return 'cabin';
+    if (category === 'Toiletries') return 'toiletries';
+    if (category === 'Medicine') return 'medicine';
+    if (category === 'Food') return 'food';
+    if (category === 'Electronics') return 'electronics';
+    if (category === 'Documents') return 'documents';
+    if (category === 'Kids') return 'kid-gear';
+    return 'other';
+  }
+
+  function packingItemTitle(todo: Todo) {
+    return todoPresentation(todo.title).title.replace(
+      /^(?:Before leaving|Travel documents|Money|Embarkation carry-on|Port\/beach bag|Mom|Dad|Son|Daughter|Diapers\/changing|Sleep|Kid gear|Entertainment|Family|Drinks|Cabin)\s+—\s+/,
+      ''
+    );
+  }
+
+  function packingSections(): PackingSection[] {
+    return packingSectionOrder
+      .map(([key, label]) => {
+        const items = todos.filter((todo) => packingSectionKey(todo) === key);
+        return {
+          key,
+          label,
+          items,
+          visibleItems: items.filter((todo) => includeDone || !todo.done),
+          done: items.filter((todo) => todo.done).length
+        };
+      })
+      .filter((section) => section.items.length > 0);
+  }
+
+  function packingStats() {
+    const total = todos.length;
+    const done = todos.filter((todo) => todo.done).length;
+    return { total, done, remaining: total - done, percent: total ? Math.round((done / total) * 100) : 0 };
+  }
+
+  function showPackingCategory(sectionKey: string, category: string) {
+    if (!category) return false;
+    const expected: Record<string, string> = {
+      documents: 'Documents',
+      mom: 'Clothing',
+      dad: 'Clothing',
+      son: 'Clothing',
+      daughter: 'Clothing',
+      diapers: 'Kids',
+      sleep: 'Kids',
+      'kid-gear': 'Kids',
+      toiletries: 'Toiletries',
+      medicine: 'Medicine',
+      food: 'Food',
+      electronics: 'Electronics'
+    };
+    return expected[sectionKey] !== category;
+  }
+
   function fmtTime(ts?: number | null) {
     if (!ts) return '';
     const d = new Date(ts * 1000);
@@ -90,7 +193,9 @@
       lists = await listLists();
       // Default to All lists so shared todos show up even if their list isn't shared.
       const trash = activeListId === '__trash__';
-      todos = await listTodos(includeDone, trash ? null : (activeListId || null), { deleted_only: trash });
+      // Packing always loads completed items so section and overall progress stay accurate.
+      // The Show done switch still controls whether completed rows remain visible.
+      todos = await listTodos(isPackingList() ? true : includeDone, trash ? null : (activeListId || null), { deleted_only: trash });
       publishVoiceContext();
       if (initialExpandedId) {
         const found = todos.find(t => t.id === initialExpandedId);
@@ -405,6 +510,70 @@
       <button type="button" class="purgeCancel" on:click={cancelTrashCountdown}>Cancel</button>
     </div>
   {/if}
+  {#if isPackingList()}
+    {@const stats = packingStats()}
+    <section class="packingOverview" aria-label="Packing progress">
+      <div class="packingEyebrow">Quantum of the Seas</div>
+      <div class="packingOverviewRow">
+        <div>
+          <h2>Packing checklist</h2>
+          <p>{stats.remaining} item{stats.remaining === 1 ? '' : 's'} left to pack</p>
+        </div>
+        <div class="packingPercent" aria-label={`${stats.percent}% complete`}>{stats.percent}%</div>
+      </div>
+      <div class="packingProgress" aria-hidden="true">
+        <span style={`width:${stats.percent}%`}></span>
+      </div>
+      <div class="packingProgressMeta">
+        <span>{stats.done} packed</span>
+        <span>{stats.total} total</span>
+      </div>
+    </section>
+
+    <div class="packingGrid">
+      {#each packingSections() as section, sectionIndex (section.key)}
+        {@const sectionPercent = Math.round((section.done / section.items.length) * 100)}
+        <details class="packingSection" open={sectionIndex === 0}>
+          <summary>
+            <span class="packingSectionTitle">{section.label}</span>
+            <span class="packingSectionCount">
+              {section.done === section.items.length ? 'Complete' : `${section.items.length - section.done} left`}
+            </span>
+          </summary>
+          <div class="packingSectionProgress" aria-hidden="true">
+            <span style={`width:${sectionPercent}%`}></span>
+          </div>
+
+          {#if section.visibleItems.length}
+            <ul class="packingItems">
+              {#each section.visibleItems as t (t.id)}
+                {@const presentation = todoPresentation(t.title)}
+                <li class:packed={t.done} class="packingItem">
+                  <label class="packingCheck">
+                    <input
+                      type="checkbox"
+                      checked={t.done}
+                      aria-label={`Mark ${packingItemTitle(t)} as ${t.done ? 'not packed' : 'packed'}`}
+                      on:change={() => toggle(t)}
+                    />
+                    <span class:done={t.done} class="packingItemTitle">{packingItemTitle(t)}</span>
+                  </label>
+                  {#if showPackingCategory(section.key, presentation.category)}
+                    <span class="categoryPill" data-category={presentation.category}>{presentation.category}</span>
+                  {/if}
+                  {#if t.assigned_to}
+                    <span class="pill">{userLabel(t.assigned_to)}</span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <div class="packingSectionComplete">Everything in this section is packed.</div>
+          {/if}
+        </details>
+      {/each}
+    </div>
+  {:else}
   <ul class="list">
     {#each todos as t (t.id)}
       <li class="item">
@@ -573,6 +742,7 @@
       </li>
     {/each}
   </ul>
+  {/if}
 {/if}
 
 <style>
@@ -602,6 +772,108 @@
   .hint { margin-top: 10px; color: var(--muted); font-size: 13px; }
   .list { list-style:none; padding: 0; margin: 12px 0; display:flex; flex-direction:column; gap:10px; }
   .item { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel); }
+
+  .packingOverview {
+    margin-top: 14px;
+    padding: 20px;
+    border: 1px solid rgba(78, 205, 167, .32);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at top right, rgba(93, 188, 255, .18), transparent 42%),
+      linear-gradient(135deg, rgba(78, 205, 167, .13), rgba(17, 24, 38, .2));
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .16);
+  }
+  .packingEyebrow {
+    color: #79d9bc;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+  .packingOverviewRow { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-top: 7px; }
+  .packingOverview h2 { margin:0; font-size: clamp(24px, 5vw, 34px); line-height:1.05; letter-spacing:-.035em; }
+  .packingOverview p { margin:7px 0 0; color:var(--muted); font-size:14px; }
+  .packingPercent { color:#79d9bc; font-size:30px; line-height:1; font-weight:950; letter-spacing:-.04em; }
+  .packingProgress { height:8px; margin-top:18px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
+  .packingProgress span,
+  .packingSectionProgress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, #42c99e, #65bfff); transition:width .25s ease; }
+  .packingProgressMeta { display:flex; justify-content:space-between; gap:12px; margin-top:8px; color:var(--muted); font-size:11px; font-weight:800; }
+
+  .packingGrid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    align-items:start;
+    gap:12px;
+    margin:12px 0;
+  }
+  .packingSection {
+    overflow:hidden;
+    border:1px solid var(--border);
+    border-radius:16px;
+    background:var(--panel);
+    box-shadow:0 10px 30px rgba(0,0,0,.1);
+  }
+  .packingSection[open] { border-color:rgba(93,188,255,.28); }
+  .packingSection summary {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:15px 16px 12px;
+    cursor:pointer;
+    list-style:none;
+    user-select:none;
+  }
+  .packingSection summary::-webkit-details-marker { display:none; }
+  .packingSection summary::before {
+    content:'›';
+    color:var(--muted);
+    font-size:21px;
+    line-height:1;
+    transform:rotate(0deg);
+    transition:transform .16s ease;
+  }
+  .packingSection[open] summary::before { transform:rotate(90deg); }
+  .packingSectionTitle { flex:1; font-size:15px; font-weight:900; letter-spacing:-.01em; }
+  .packingSectionCount { color:var(--muted); font-size:11px; font-weight:800; white-space:nowrap; }
+  .packingSectionProgress { height:3px; margin:0 16px 5px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.06); }
+  .packingItems { margin:0; padding:3px 0 6px; list-style:none; }
+  .packingItem {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:42px;
+    margin:0 10px;
+    padding:4px 6px;
+    border-top:1px solid rgba(154,164,175,.11);
+  }
+  .packingItem:first-child { border-top:0; }
+  .packingItem.packed { opacity:.62; }
+  .packingCheck { display:flex; flex:1; align-items:center; gap:10px; min-width:0; cursor:pointer; }
+  .packingCheck input { width:19px; height:19px; margin:0; flex:0 0 auto; accent-color:#4ecda7; }
+  .packingItemTitle { min-width:0; font-size:13px; line-height:1.35; }
+  .packingSectionComplete { padding:13px 16px 17px; color:#79d9bc; font-size:12px; font-weight:800; }
+
+  .packingItem .categoryPill { flex:0 0 auto; font-size:9px; padding:2px 6px; }
+  .categoryPill[data-category='Clothing'] { color:#c6a7ff; border-color:rgba(174,132,255,.38); background:rgba(174,132,255,.08); }
+  .categoryPill[data-category='Kids'] { color:#ffbd73; border-color:rgba(255,174,79,.4); background:rgba(255,174,79,.08); }
+  .categoryPill[data-category='Toiletries'] { color:#ff9cc8; border-color:rgba(255,115,179,.38); background:rgba(255,115,179,.08); }
+  .categoryPill[data-category='Medicine'] { color:#ff9999; border-color:rgba(255,107,107,.38); background:rgba(255,107,107,.08); }
+  .categoryPill[data-category='Food'] { color:#9edb77; border-color:rgba(126,202,82,.38); background:rgba(126,202,82,.08); }
+  .categoryPill[data-category='Documents'] { color:#8fd3ff; }
+  .categoryPill[data-category='Electronics'] { color:#75d9d0; border-color:rgba(75,203,190,.38); background:rgba(75,203,190,.08); }
+
+  @media (max-width: 600px) {
+    .packingOverview { padding:17px; border-radius:17px; }
+    .packingOverviewRow { align-items:center; }
+    .packingPercent { font-size:26px; }
+    .packingGrid { grid-template-columns:1fr; gap:10px; }
+    .packingSection summary { padding:14px 13px 11px; }
+    .packingSectionProgress { margin-inline:13px; }
+    .packingItem { margin-inline:7px; padding-inline:5px; }
+    .packingItem .categoryPill { display:none; }
+  }
+
   .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .right { display:flex; align-items:center; gap:8px; }
   .check { display:flex; gap:10px; align-items:center; }
