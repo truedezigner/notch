@@ -18,6 +18,7 @@ from .settings import settings
 from . import todos as todos_api
 from . import lists as lists_api
 from . import notes as notes_api
+from . import ios_sync as ios_sync_api
 from .scheduler import run_once
 
 
@@ -114,6 +115,16 @@ async def me(p: Principal = Depends(require_principal)):
     u = dict(p.user or {})
     u["is_admin"] = is_admin_user(u.get("id") or "")
     return {"ok": True, "user": u}
+
+
+@app.get("/api/ios/v1/snapshot")
+async def ios_snapshot(p: Principal = Depends(require_principal)):
+    return ios_sync_api.snapshot(p=p)
+
+
+@app.post("/api/ios/v1/operations")
+async def ios_operations(payload: dict, p: Principal = Depends(require_principal)):
+    return ios_sync_api.apply_operations(p=p, payload=payload)
 
 
 @app.get("/api/users")

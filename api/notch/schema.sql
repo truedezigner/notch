@@ -102,3 +102,13 @@ CREATE TABLE IF NOT EXISTS note_shares (
 
 CREATE INDEX IF NOT EXISTS idx_note_shares_note ON note_shares(note_id);
 CREATE INDEX IF NOT EXISTS idx_note_shares_exp ON note_shares(expires_at);
+
+-- Idempotency ledger for the native iOS compatibility bridge. The content
+-- payload is not retained; this only prevents a retried operation applying twice.
+CREATE TABLE IF NOT EXISTS ios_sync_operations (
+  user_id TEXT NOT NULL,
+  operation_id TEXT NOT NULL,
+  applied_at INTEGER NOT NULL,
+  result_json TEXT NOT NULL,
+  PRIMARY KEY (user_id, operation_id)
+);
