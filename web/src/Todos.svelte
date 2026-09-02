@@ -61,6 +61,14 @@
     done: number;
   };
 
+  type PackingGroup = {
+    key: string;
+    label: string;
+    sections: PackingSection[];
+    total: number;
+    done: number;
+  };
+
   const packingSectionOrder = [
     ['before', 'Before You Leave'],
     ['documents', 'Documents & Money'],
@@ -79,6 +87,15 @@
     ['electronics', 'Electronics'],
     ['cabin', 'Cabin Organization'],
     ['other', 'Other Essentials']
+  ] as const;
+
+  const packingGroupOrder = [
+    ['trip-prep', 'Trip Prep', ['before', 'documents']],
+    ['bags', 'Bags Ready', ['carry-on', 'port-bag']],
+    ['clothes', 'Clothes by Person', ['mom', 'dad', 'son', 'daughter']],
+    ['kids', 'Kids', ['diapers', 'sleep', 'kid-gear']],
+    ['care', 'Health & Personal Care', ['toiletries', 'medicine']],
+    ['gear', 'Gear & Cabin', ['food', 'electronics', 'cabin', 'other']]
   ] as const;
 
   function isPackingList() {
@@ -137,23 +154,20 @@
     return { total, done, remaining: total - done, percent: total ? Math.round((done / total) * 100) : 0 };
   }
 
-  function showPackingCategory(sectionKey: string, category: string) {
-    if (!category) return false;
-    const expected: Record<string, string> = {
-      documents: 'Documents',
-      mom: 'Clothing',
-      dad: 'Clothing',
-      son: 'Clothing',
-      daughter: 'Clothing',
-      diapers: 'Kids',
-      sleep: 'Kids',
-      'kid-gear': 'Kids',
-      toiletries: 'Toiletries',
-      medicine: 'Medicine',
-      food: 'Food',
-      electronics: 'Electronics'
-    };
-    return expected[sectionKey] !== category;
+  function packingGroups(): PackingGroup[] {
+    const sections = packingSections();
+    return packingGroupOrder
+      .map(([key, label, sectionKeys]) => {
+        const grouped = sections.filter((section) => sectionKeys.includes(section.key as never));
+        return {
+          key,
+          label,
+          sections: grouped,
+          total: grouped.reduce((sum, section) => sum + section.items.length, 0),
+          done: grouped.reduce((sum, section) => sum + section.done, 0)
+        };
+      })
+      .filter((group) => group.total > 0);
   }
 
   function fmtTime(ts?: number | null) {
@@ -485,7 +499,7 @@
   </div>
 {/if}
 
-<div class="add">
+<div class:packingAdd={isPackingList()} class="add">
   <input bind:value={newTitle} placeholder="New reminder…" on:keydown={(e) => e.key === 'Enter' && add()} />
   <button on:click={add} disabled={!newTitle.trim()}>Add</button>
 </div>
@@ -531,45 +545,51 @@
     </section>
 
     <div class="packingGrid">
-      {#each packingSections() as section, sectionIndex (section.key)}
-        {@const sectionPercent = Math.round((section.done / section.items.length) * 100)}
-        <details class="packingSection" open={sectionIndex === 0}>
+      {#each packingGroups() as group, groupIndex (group.key)}
+        {@const groupPercent = Math.round((group.done / group.total) * 100)}
+        <details class="packingSection" open={groupIndex === 0}>
           <summary>
-            <span class="packingSectionTitle">{section.label}</span>
+            <span class="packingSectionTitle">{group.label}</span>
             <span class="packingSectionCount">
-              {section.done === section.items.length ? 'Complete' : `${section.items.length - section.done} left`}
+              {group.done === group.total ? 'Complete' : `${group.total - group.done} left`}
             </span>
           </summary>
           <div class="packingSectionProgress" aria-hidden="true">
-            <span style={`width:${sectionPercent}%`}></span>
+            <span style={`width:${groupPercent}%`}></span>
           </div>
 
-          {#if section.visibleItems.length}
-            <ul class="packingItems">
-              {#each section.visibleItems as t (t.id)}
-                {@const presentation = todoPresentation(t.title)}
-                <li class:packed={t.done} class="packingItem">
-                  <label class="packingCheck">
-                    <input
-                      type="checkbox"
-                      checked={t.done}
-                      aria-label={`Mark ${packingItemTitle(t)} as ${t.done ? 'not packed' : 'packed'}`}
-                      on:change={() => toggle(t)}
-                    />
-                    <span class:done={t.done} class="packingItemTitle">{packingItemTitle(t)}</span>
-                  </label>
-                  {#if showPackingCategory(section.key, presentation.category)}
-                    <span class="categoryPill" data-category={presentation.category}>{presentation.category}</span>
-                  {/if}
-                  {#if t.assigned_to}
-                    <span class="pill">{userLabel(t.assigned_to)}</span>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-          {:else}
-            <div class="packingSectionComplete">Everything in this section is packed.</div>
-          {/if}
+          <div class="packingGroupBody">
+            {#each group.sections as section (section.key)}
+              <section class="packingSubsection">
+                <div class="packingSubsectionHead">
+                  <h3>{section.label}</h3>
+                  <span>{section.done}/{section.items.length}</span>
+                </div>
+                {#if section.visibleItems.length}
+                  <ul class="packingItems">
+                    {#each section.visibleItems as t (t.id)}
+                      <li class:packed={t.done} class="packingItem">
+                        <label class="packingCheck">
+                          <input
+                            type="checkbox"
+                            checked={t.done}
+                            aria-label={`Mark ${packingItemTitle(t)} as ${t.done ? 'not packed' : 'packed'}`}
+                            on:change={() => toggle(t)}
+                          />
+                          <span class:done={t.done} class="packingItemTitle">{packingItemTitle(t)}</span>
+                        </label>
+                        {#if t.assigned_to}
+                          <span class="pill">{userLabel(t.assigned_to)}</span>
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                {:else}
+                  <div class="packingSectionComplete">Section packed.</div>
+                {/if}
+              </section>
+            {/each}
+          </div>
         </details>
       {/each}
     </div>
@@ -765,6 +785,8 @@
   .ghost:hover { filter: brightness(1.08); }
 
   .add { display:flex; flex-direction:column; gap:8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-top: 10px; }
+  .add.packingAdd { flex-direction:row; padding:8px; }
+  .add.packingAdd input { flex:1; min-width:0; }
   input { font: inherit; padding: 10px; border-radius: 10px; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--btn); background: var(--btn); color: var(--btnText); font-weight: 800; }
   button:disabled { opacity: .5; }
@@ -775,9 +797,9 @@
 
   .packingOverview {
     margin-top: 14px;
-    padding: 20px;
+    padding: 15px 17px;
     border: 1px solid rgba(78, 205, 167, .32);
-    border-radius: 20px;
+    border-radius: 16px;
     background:
       radial-gradient(circle at top right, rgba(93, 188, 255, .18), transparent 42%),
       linear-gradient(135deg, rgba(78, 205, 167, .13), rgba(17, 24, 38, .2));
@@ -790,18 +812,18 @@
     letter-spacing: .13em;
     text-transform: uppercase;
   }
-  .packingOverviewRow { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-top: 7px; }
-  .packingOverview h2 { margin:0; font-size: clamp(24px, 5vw, 34px); line-height:1.05; letter-spacing:-.035em; }
-  .packingOverview p { margin:7px 0 0; color:var(--muted); font-size:14px; }
-  .packingPercent { color:#79d9bc; font-size:30px; line-height:1; font-weight:950; letter-spacing:-.04em; }
-  .packingProgress { height:8px; margin-top:18px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
+  .packingOverviewRow { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top: 4px; }
+  .packingOverview h2 { margin:0; font-size: clamp(21px, 4vw, 27px); line-height:1.05; letter-spacing:-.035em; }
+  .packingOverview p { margin:4px 0 0; color:var(--muted); font-size:12px; }
+  .packingPercent { color:#79d9bc; font-size:25px; line-height:1; font-weight:950; letter-spacing:-.04em; }
+  .packingProgress { height:6px; margin-top:12px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
   .packingProgress span,
   .packingSectionProgress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, #42c99e, #65bfff); transition:width .25s ease; }
   .packingProgressMeta { display:flex; justify-content:space-between; gap:12px; margin-top:8px; color:var(--muted); font-size:11px; font-weight:800; }
 
   .packingGrid {
     display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    grid-template-columns:1fr;
     align-items:start;
     gap:12px;
     margin:12px 0;
@@ -837,41 +859,39 @@
   .packingSectionTitle { flex:1; font-size:15px; font-weight:900; letter-spacing:-.01em; }
   .packingSectionCount { color:var(--muted); font-size:11px; font-weight:800; white-space:nowrap; }
   .packingSectionProgress { height:3px; margin:0 16px 5px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.06); }
-  .packingItems { margin:0; padding:3px 0 6px; list-style:none; }
+  .packingGroupBody { padding:2px 12px 11px; }
+  .packingSubsection { padding:8px 0 5px; border-top:1px solid rgba(154,164,175,.13); }
+  .packingSubsection:first-child { border-top:0; }
+  .packingSubsectionHead { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 4px 5px; }
+  .packingSubsectionHead h3 { margin:0; color:#a8d8f4; font-size:11px; font-weight:900; letter-spacing:.075em; text-transform:uppercase; }
+  .packingSubsectionHead span { color:var(--muted); font-size:10px; font-weight:800; }
+  .packingItems { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 14px; margin:0; padding:0; list-style:none; }
   .packingItem {
     display:flex;
     align-items:center;
     gap:8px;
-    min-height:42px;
-    margin:0 10px;
-    padding:4px 6px;
+    min-height:35px;
+    margin:0;
+    padding:3px 4px;
     border-top:1px solid rgba(154,164,175,.11);
   }
   .packingItem:first-child { border-top:0; }
   .packingItem.packed { opacity:.62; }
-  .packingCheck { display:flex; flex:1; align-items:center; gap:10px; min-width:0; cursor:pointer; }
-  .packingCheck input { width:19px; height:19px; margin:0; flex:0 0 auto; accent-color:#4ecda7; }
-  .packingItemTitle { min-width:0; font-size:13px; line-height:1.35; }
-  .packingSectionComplete { padding:13px 16px 17px; color:#79d9bc; font-size:12px; font-weight:800; }
-
-  .packingItem .categoryPill { flex:0 0 auto; font-size:9px; padding:2px 6px; }
-  .categoryPill[data-category='Clothing'] { color:#c6a7ff; border-color:rgba(174,132,255,.38); background:rgba(174,132,255,.08); }
-  .categoryPill[data-category='Kids'] { color:#ffbd73; border-color:rgba(255,174,79,.4); background:rgba(255,174,79,.08); }
-  .categoryPill[data-category='Toiletries'] { color:#ff9cc8; border-color:rgba(255,115,179,.38); background:rgba(255,115,179,.08); }
-  .categoryPill[data-category='Medicine'] { color:#ff9999; border-color:rgba(255,107,107,.38); background:rgba(255,107,107,.08); }
-  .categoryPill[data-category='Food'] { color:#9edb77; border-color:rgba(126,202,82,.38); background:rgba(126,202,82,.08); }
-  .categoryPill[data-category='Documents'] { color:#8fd3ff; }
-  .categoryPill[data-category='Electronics'] { color:#75d9d0; border-color:rgba(75,203,190,.38); background:rgba(75,203,190,.08); }
+  .packingCheck { display:flex; flex:1; align-items:center; gap:8px; min-width:0; cursor:pointer; }
+  .packingCheck input { width:17px; height:17px; margin:0; flex:0 0 auto; accent-color:#4ecda7; }
+  .packingItemTitle { min-width:0; font-size:12px; line-height:1.3; }
+  .packingSectionComplete { padding:5px 4px 7px; color:#79d9bc; font-size:11px; font-weight:800; }
 
   @media (max-width: 600px) {
-    .packingOverview { padding:17px; border-radius:17px; }
+    .packingOverview { padding:14px; border-radius:15px; }
     .packingOverviewRow { align-items:center; }
     .packingPercent { font-size:26px; }
     .packingGrid { grid-template-columns:1fr; gap:10px; }
     .packingSection summary { padding:14px 13px 11px; }
     .packingSectionProgress { margin-inline:13px; }
-    .packingItem { margin-inline:7px; padding-inline:5px; }
-    .packingItem .categoryPill { display:none; }
+    .packingGroupBody { padding-inline:9px; }
+    .packingItems { grid-template-columns:1fr; }
+    .packingItem { padding-inline:4px; }
   }
 
   .row1 { display:flex; justify-content:space-between; align-items:center; gap:10px; }
