@@ -3,11 +3,13 @@
   import Todos from './Todos.svelte';
   import Notes from './Notes.svelte';
   import Admin from './Admin.svelte';
+  import VoiceCapture from './VoiceCapture.svelte';
   import type { User } from './api';
   import { getToken, me } from './api';
 
   let authed = !!getToken();
   let currentUser: User | null = null;
+  let contentVersion = 0;
   let route = '';
   let tab: 'todos' | 'notes' | 'admin' = 'todos';
   let todoId: string | null = null;
@@ -62,23 +64,29 @@
       {#if currentUser?.is_admin}
         <button class:active={tab==='admin'} on:click={() => goto('admin')}>Admin</button>
       {/if}
+      {#if tab !== 'admin'}
+        <VoiceCapture defaultMode={tab === 'notes' ? 'note' : 'todo'} onSaved={() => { contentVersion += 1; }} />
+      {/if}
     </div>
 
-    {#if tab === 'todos'}
-      <Todos initialExpandedId={todoId} />
-    {:else if tab === 'notes'}
-      <Notes initialSelectedId={noteId} />
-    {:else}
-      {#if currentUser}
-        <Admin me={currentUser} />
+    {#key `${tab}:${contentVersion}`}
+      {#if tab === 'todos'}
+        <Todos initialExpandedId={todoId} />
+      {:else if tab === 'notes'}
+        <Notes initialSelectedId={noteId} />
+      {:else}
+        {#if currentUser}
+          <Admin me={currentUser} />
+        {/if}
       {/if}
-    {/if}
+    {/key}
   {:else}
     <Login onDone={done} />
   {/if}
 
   <style>
-    .tabs { display:flex; gap:8px; margin: 10px 0 14px; }
+    .tabs { display:flex; gap:8px; margin: 10px 0 14px; flex-wrap:wrap; align-items:center; }
+    .tabs :global(.voiceLaunch) { margin-left:auto; }
     .tabs button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-weight: 800; }
     .tabs button.active { border-color: rgba(255,255,255,0.35); }
   </style>

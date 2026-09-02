@@ -38,6 +38,13 @@
     return l ? l.name : '';
   }
 
+  const voiceCategories = new Set(['Clothing', 'Toiletries', 'Electronics', 'Kids', 'Food', 'Documents', 'Medicine']);
+  function todoPresentation(value: string) {
+    const match = String(value || '').match(/^\[([^\]]+)\]\s+(.+)$/);
+    if (!match || !voiceCategories.has(match[1])) return { title: value, category: '' };
+    return { title: match[2], category: match[1] };
+  }
+
   function fmtTime(ts?: number | null) {
     if (!ts) return '';
     const d = new Date(ts * 1000);
@@ -404,10 +411,13 @@
               const base = location.pathname.includes('/app/') ? '/app/' : '/';
               const next = expandedId ? `${base}todos/${encodeURIComponent(t.id)}` : `${base}`;
               history.pushState({}, '', next);
-            }}>{t.title}</button>
+            }}>{todoPresentation(t.title).title}</button>
           </label>
 
           <div class="right">
+            {#if todoPresentation(t.title).category}
+              <span class="categoryPill">{todoPresentation(t.title).category}</span>
+            {/if}
             {#if t.assigned_to}
               <span class="pill">{userLabel(t.assigned_to)}</span>
             {/if}
@@ -589,6 +599,7 @@
   .titleBtn { cursor: pointer; background: transparent; border: none; padding: 0; text-align:left; font: inherit; color: var(--text); }
   .titleBtn:hover { text-decoration: underline; }
   .pill { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+  .categoryPill { font-size: 11px; border: 1px solid rgba(93,188,255,.38); border-radius: 999px; padding: 2px 8px; color: #8fd3ff; background: rgba(93,188,255,.07); }
   .editor { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display:flex; gap: 14px; flex-wrap: wrap; }
 
   .iconBtn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 10px; font-weight: 800; display:inline-flex; align-items:center; justify-content:center; }

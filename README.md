@@ -11,18 +11,33 @@ LAN-first notes + todos with per-user notifications via **ntfy**.
 ### Todos
 - Multiple lists + “All” + “Trash”
 - Title-only reminders (no description)
+- Preview-first voice capture into a selected list
+- Local smart splitting, duplicate removal, and optional category labels
 - Assign, share-with, due, remind
 - Deep links: `/app/todos/:id`
 - Soft delete + undo
 
 ### Notes
 - Groups + “All” + “Trash”
+- Preview-first voice capture into a selected group
 - Markdown editor + Preview
 - Autosave
 - Group-level share + note-level share
 - Public editable share links (anyone-with-link) with optional expiry
 - Deep links: `/app/notes/:id`
 - Soft delete + undo
+
+### Voice capture
+
+Use **Voice add** from the Todos or Notes tab. Notch keeps the transcript editable and
+does not create anything until the final Add button is pressed. Todo speech is split on
+clear item boundaries (commas, “next item,” and action changes); connected phrases such
+as “phone charger and cable” remain together. When categories are spoken out of order,
+the preview offers to organize and label them before saving.
+
+Speech recognition comes from the browser/device. Some browsers block microphone access
+on a plain HTTP LAN address; the same preview works with the phone or keyboard dictation
+button in the transcript field when that happens.
 
 ## Local dev (Zorin-96)
 
