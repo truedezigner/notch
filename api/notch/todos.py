@@ -106,8 +106,8 @@ def list_todos(
 
     q = (query or "").strip().lower()
     params: list[Any] = []
-    where = ["(created_by=? OR assigned_to=? OR instr(shared_with, ?) > 0)"]
-    params.extend([p.user["id"], p.user["id"], p.user["id"]])
+    where = ["(created_by=? OR assigned_to=? OR instr(shared_with, ?) > 0 OR EXISTS(SELECT 1 FROM todo_lists l WHERE l.id=todos.list_id AND instr(l.shared_with, ?) > 0))"]
+    params.extend([p.user["id"], p.user["id"], p.user["id"], p.user["id"]])
 
     if not include_done:
         where.append("done=0")
@@ -198,6 +198,8 @@ def purge_todo(*, p: Principal, todo_id: str) -> dict[str, Any]:
         # Only allow purge from Trash (safety)
         if cur.get("deleted_at") is None:
             raise HTTPException(status_code=409, detail="Todo is not in Trash")
+        if cur.get("created_by") != p.user["id"]:
+            raise HTTPException(status_code=403, detail="Only creator can permanently delete")
 
         con.execute("DELETE FROM todos WHERE id=?", (todo_id,))
 
@@ -328,7 +330,15 @@ def _can_see(user_id: str, todo: dict) -> bool:
     if todo.get("assigned_to") == user_id:
         return True
     sw = _loads_list(todo.get("shared_with"))
-    return user_id in sw
+    if user_id in sw:
+        return True
+    list_id = todo.get("list_id")
+    if list_id:
+        with tx() as con:
+            row = con.execute("SELECT shared_with FROM todo_lists WHERE id=?", (str(list_id),)).fetchone()
+            if row and user_id in _loads_list(row["shared_with"]):
+                return True
+    return False
 
 
 def _row_to_todo(row: dict) -> dict[str, Any]:

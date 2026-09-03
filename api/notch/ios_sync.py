@@ -35,6 +35,17 @@ def _visible(user_id: str, row: dict[str, Any]) -> bool:
     return row.get("created_by") == user_id or row.get("assigned_to") == user_id or user_id in _loads_list(row.get("shared_with"))
 
 
+def _item_visible(con, user_id: str, row: dict[str, Any], *, is_note: bool) -> bool:
+    if _visible(user_id, row):
+        return True
+    collection_id = row.get("group_id" if is_note else "list_id")
+    if not collection_id:
+        return False
+    table = "note_groups" if is_note else "todo_lists"
+    parent = con.execute(f"SELECT shared_with FROM {table} WHERE id=?", (str(collection_id),)).fetchone()
+    return bool(parent and user_id in _loads_list(parent["shared_with"]))
+
+
 def _validate_uuid(value: Any, field: str) -> str:
     try:
         return str(uuid.UUID(str(value)))
@@ -42,11 +53,39 @@ def _validate_uuid(value: Any, field: str) -> str:
         raise HTTPException(status_code=400, detail=f"Invalid {field}") from exc
 
 
+def _validate_user_ids(con, value: Any, field: str = "shared_with") -> list[str]:
+    if not isinstance(value, list) or len(value) > 100:
+        raise HTTPException(status_code=400, detail=f"{field} must be a list of at most 100 users")
+    result = list(dict.fromkeys(_validate_uuid(item, field) for item in value))
+    if result:
+        marks = ",".join("?" for _ in result)
+        found = {str(row["id"]) for row in con.execute(f"SELECT id FROM users WHERE id IN ({marks})", result).fetchall()}
+        if found != set(result):
+            raise HTTPException(status_code=400, detail=f"Unknown user in {field}")
+    return result
+
+
+def _validate_assignee(con, value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    user_id = _validate_uuid(value, "assigned_to")
+    if not con.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+        raise HTTPException(status_code=400, detail="Unknown assigned user")
+    return user_id
+
+
+def _person(row: dict[str, Any]) -> dict[str, Any]:
+    return {"id": row["id"], "handle": row["handle"], "display_name": row["display_name"]}
+
+
 def snapshot(*, p: Principal) -> dict[str, Any]:
     user_id = _principal_user_id(p)
     ensure_default_list(user_id)
     ensure_default_group(user_id)
     with tx() as con:
+        users = [dict(row) for row in con.execute(
+            "SELECT id,handle,display_name FROM users ORDER BY lower(display_name),lower(handle)"
+        ).fetchall()]
         lists = [dict(row) for row in con.execute(
             "SELECT * FROM todo_lists WHERE created_by=? OR instr(shared_with, ?) > 0 ORDER BY lower(name)",
             (user_id, user_id),
@@ -56,8 +95,10 @@ def snapshot(*, p: Principal) -> dict[str, Any]:
             (user_id, user_id),
         ).fetchall()]
         todos = [dict(row) for row in con.execute(
-            "SELECT * FROM todos WHERE created_by=? OR assigned_to=? OR instr(shared_with, ?) > 0 ORDER BY updated_at DESC",
-            (user_id, user_id, user_id),
+            """SELECT * FROM todos WHERE created_by=? OR assigned_to=? OR instr(shared_with, ?) > 0
+               OR EXISTS(SELECT 1 FROM todo_lists l WHERE l.id=todos.list_id AND instr(l.shared_with, ?) > 0)
+               ORDER BY updated_at DESC""",
+            (user_id, user_id, user_id, user_id),
         ).fetchall()]
         notes = [dict(row) for row in con.execute(
             """SELECT n.* FROM notes n WHERE n.created_by=? OR instr(n.shared_with, ?) > 0
@@ -70,12 +111,12 @@ def snapshot(*, p: Principal) -> dict[str, Any]:
         return {"id": row["id"], "name": row["name"], "created_by": row["created_by"], "shared_with": _loads_list(row.get("shared_with")), "created_at": row["created_at"], "updated_at": row["updated_at"]}
 
     def todo(row: dict[str, Any]) -> dict[str, Any]:
-        return {"id": row["id"], "list_id": row["list_id"], "title": row["title"], "done": bool(row.get("done")), "due_at": row.get("due_at"), "remind_at": row.get("remind_at"), "created_by": row["created_by"], "shared_with": _loads_list(row.get("shared_with")), "created_at": row["created_at"], "updated_at": row["updated_at"], "deleted_at": row.get("deleted_at"), "version": row.get("version") or 1}
+        return {"id": row["id"], "list_id": row["list_id"], "title": row["title"], "done": bool(row.get("done")), "due_at": row.get("due_at"), "remind_at": row.get("remind_at"), "assigned_to": row.get("assigned_to"), "created_by": row["created_by"], "shared_with": _loads_list(row.get("shared_with")), "created_at": row["created_at"], "updated_at": row["updated_at"], "deleted_at": row.get("deleted_at"), "version": row.get("version") or 1}
 
     def note(row: dict[str, Any]) -> dict[str, Any]:
         return {"id": row["id"], "group_id": row["group_id"], "title": row["title"], "body_md": row.get("body_md") or "", "created_by": row["created_by"], "shared_with": _loads_list(row.get("shared_with")), "created_at": row["created_at"], "updated_at": row["updated_at"], "deleted_at": row.get("deleted_at"), "version": row.get("version") or 1}
 
-    return {"ok": True, "server_time": now(), "user": dict(p.user), "todo_lists": [collection(row) for row in lists], "todos": [todo(row) for row in todos], "note_groups": [collection(row) for row in groups], "notes": [note(row) for row in notes]}
+    return {"ok": True, "server_time": now(), "user": _person(dict(p.user)), "users": [_person(row) for row in users], "todo_lists": [collection(row) for row in lists], "todos": [todo(row) for row in todos], "note_groups": [collection(row) for row in groups], "notes": [note(row) for row in notes]}
 
 
 def apply_operations(*, p: Principal, payload: dict[str, Any]) -> dict[str, Any]:
@@ -136,15 +177,23 @@ def _apply_collection(con, user_id: str, entity_id: str, mutation: str, body: di
         if not title:
             raise HTTPException(status_code=400, detail="Missing title")
         timestamp = now()
-        con.execute(f"INSERT INTO {table}(id,name,created_by,shared_with,created_at,updated_at) VALUES(?,?,?,?,?,?)", (entity_id, title, user_id, "[]", timestamp, timestamp))
+        shared_with = _validate_user_ids(con, body.get("shared_with", []))
+        con.execute(f"INSERT INTO {table}(id,name,created_by,shared_with,created_at,updated_at) VALUES(?,?,?,?,?,?)", (entity_id, title, user_id, json.dumps(shared_with), timestamp, timestamp))
         return {"id": entity_id, "created": True}
     if not current:
         raise HTTPException(status_code=404, detail="Collection not found")
     if current.get("created_by") != user_id:
         raise HTTPException(status_code=403, detail="Only creator can edit")
-    if mutation == "update" and title:
-        con.execute(f"UPDATE {table} SET name=?,updated_at=? WHERE id=?", (title, now(), entity_id))
-        return {"id": entity_id, "updated": True}
+    if mutation == "update":
+        fields: dict[str, Any] = {}
+        if title:
+            fields["name"] = title
+        if "shared_with" in body:
+            fields["shared_with"] = json.dumps(_validate_user_ids(con, body.get("shared_with")))
+        if fields:
+            assignments = [f"{name}=?" for name in fields]
+            con.execute(f"UPDATE {table} SET {', '.join(assignments)},updated_at=? WHERE id=?", [*fields.values(), now(), entity_id])
+            return {"id": entity_id, "updated": True}
     raise HTTPException(status_code=400, detail="Unsupported collection mutation")
 
 
@@ -152,7 +201,7 @@ def _apply_item(con, user_id: str, entity_id: str, mutation: str, body: dict[str
     table = "notes" if is_note else "todos"
     row = con.execute(f"SELECT * FROM {table} WHERE id=?", (entity_id,)).fetchone()
     current = dict(row) if row else None
-    if current and not _visible(user_id, current):
+    if current and not _item_visible(con, user_id, current, is_note=is_note):
         raise HTTPException(status_code=404, detail="Item not found")
 
     if mutation == "create":
@@ -163,13 +212,15 @@ def _apply_item(con, user_id: str, entity_id: str, mutation: str, body: dict[str
         if not title:
             raise HTTPException(status_code=400, detail="Missing title")
         timestamp = now()
+        shared_with = _validate_user_ids(con, body.get("shared_with", []))
         if is_note:
             _require_collection(con, "note_groups", collection_id, user_id)
-            con.execute("INSERT INTO notes(id,group_id,title,body_md,shared_with,created_by,created_at,updated_at,version) VALUES(?,?,?,?,?,?,?,?,1)", (entity_id, collection_id, title, str(body.get("body") or ""), "[]", user_id, timestamp, timestamp))
+            con.execute("INSERT INTO notes(id,group_id,title,body_md,shared_with,created_by,created_at,updated_at,version) VALUES(?,?,?,?,?,?,?,?,1)", (entity_id, collection_id, title, str(body.get("body") or ""), json.dumps(shared_with), user_id, timestamp, timestamp))
         else:
             _require_collection(con, "todo_lists", collection_id, user_id)
+            assigned_to = _validate_assignee(con, body.get("assigned_to"))
             con.execute("""INSERT INTO todos(id,list_id,title,notes,done,due_at,remind_at,remind_sent_at,assigned_to,shared_with,created_by,created_at,updated_at,version)
-                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (entity_id, collection_id, title, None, int(bool(body.get("completed"))), body.get("due_at"), body.get("reminder_at"), None, None, "[]", user_id, timestamp, timestamp))
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1)""", (entity_id, collection_id, title, None, int(bool(body.get("completed"))), body.get("due_at"), body.get("reminder_at"), None, assigned_to, json.dumps(shared_with), user_id, timestamp, timestamp))
         return {"id": entity_id, "version": 1, "created": True}
 
     if not current:
@@ -193,6 +244,13 @@ def _apply_item(con, user_id: str, entity_id: str, mutation: str, body: dict[str
             if "reminder_at" in body:
                 fields["remind_at"] = body.get("reminder_at")
                 fields["remind_sent_at"] = None
+        people_change = "shared_with" in body or (not is_note and ("assigned_to" in body or body.get("clear_assigned_to") is True))
+        if people_change and current.get("created_by") != user_id:
+            raise HTTPException(status_code=403, detail="Only creator can change sharing")
+        if "shared_with" in body:
+            fields["shared_with"] = json.dumps(_validate_user_ids(con, body.get("shared_with")))
+        if not is_note and ("assigned_to" in body or body.get("clear_assigned_to") is True):
+            fields["assigned_to"] = _validate_assignee(con, None if body.get("clear_assigned_to") is True else body.get("assigned_to"))
     elif mutation == "tombstone":
         fields["deleted_at"] = now()
     elif mutation == "restore":
