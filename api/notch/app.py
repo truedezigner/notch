@@ -6,7 +6,7 @@ import uuid
 import secrets
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -14,6 +14,7 @@ import asyncio
 
 from .auth import Principal, hash_password, issue_session, require_principal, verify_password
 from .db import tx
+from .change_feed import change_feed
 from .settings import settings
 from . import todos as todos_api
 from . import lists as lists_api
@@ -119,12 +120,34 @@ async def me(p: Principal = Depends(require_principal)):
 
 @app.get("/api/ios/v1/snapshot")
 async def ios_snapshot(p: Principal = Depends(require_principal)):
-    return ios_sync_api.snapshot(p=p)
+    # Capture the revision before reading SQLite. If a write races the snapshot,
+    # the next wait still observes the newer revision and triggers another fetch.
+    revision = await change_feed.current()
+    result = ios_sync_api.snapshot(p=p)
+    result["change_revision"] = revision
+    return result
 
 
 @app.post("/api/ios/v1/operations")
 async def ios_operations(payload: dict, p: Principal = Depends(require_principal)):
-    return ios_sync_api.apply_operations(p=p, payload=payload)
+    result = ios_sync_api.apply_operations(p=p, payload=payload)
+    if result.get("results"):
+        result["change_revision"] = await change_feed.publish()
+    return result
+
+
+@app.get("/api/ios/v1/changes")
+async def ios_changes(
+    since: int = Query(ge=0),
+    timeout_seconds: float = Query(default=25.0, ge=1.0, le=30.0),
+    p: Principal = Depends(require_principal),
+):
+    # Authentication is intentionally required even though this response has no
+    # user content. Clients receive only a revision signal, then fetch their own
+    # permission-filtered snapshot through the normal endpoint.
+    del p
+    revision, changed = await change_feed.wait(since, timeout_seconds)
+    return {"ok": True, "revision": revision, "changed": changed}
 
 
 @app.get("/api/users")

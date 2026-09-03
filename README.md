@@ -93,6 +93,16 @@ Default LAN ports:
 - ntfy: `http://192.168.29.228:8082`
 - Notch: `http://192.168.29.228:8083/app/`
 
+### Native iOS live sync
+
+The native app writes idempotent changes to `/api/ios/v1/operations`. A successful
+write advances the process-local change revision and wakes authenticated foreground
+clients waiting on `/api/ios/v1/changes`; those clients then fetch their normal
+permission-filtered `/api/ios/v1/snapshot`. The notification contains no note or todo
+content. Its 25-second long-poll timeout is only a keepalive, and native clients retain
+periodic polling plus pull-to-refresh as recovery paths. Notch currently runs one
+Uvicorn process, which is required by the process-local wake signal.
+
 ## Notes on ntfy auth
 
 If ntfy is configured with `deny-all` by default, Notch must publish with an Authorization header. The current MVP path is to run ntfy open on LAN first, then harden later.
