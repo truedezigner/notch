@@ -63,14 +63,14 @@ class IOSSharingTests(unittest.TestCase):
         self.friend = Principal("user", {"id": self.friend_id, "handle": "friend", "display_name": "Friend"})
         self.third = Principal("user", {"id": self.third_id, "handle": "third", "display_name": "Third"})
 
-    def operation(self, principal, entity_type, entity_id, payload, base_version=None):
+    def operation(self, principal, entity_type, entity_id, payload, base_version=None, mutation="update"):
         return ios_sync.apply_operations(
             p=principal,
             payload={"operations": [{
                 "id": str(uuid.uuid4()),
                 "entity_id": entity_id,
                 "entity_type": entity_type,
-                "mutation": "update",
+                "mutation": mutation,
                 "base_version": base_version,
                 "payload": payload,
             }]},
@@ -109,6 +109,39 @@ class IOSSharingTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as caught:
             self.operation(self.friend, "note", self.note_id, {"shared_with": [self.third_id]}, base_version=1)
         self.assertEqual(caught.exception.status_code, 403)
+
+    def test_shared_list_collaborator_can_complete_delete_and_restore_todo(self):
+        self.operation(
+            self.owner,
+            "collection",
+            self.list_id,
+            {"kind_raw": "todos", "shared_with": [self.friend_id]},
+        )
+        completed = self.operation(self.friend, "todo", self.todo_id, {"completed": True}, base_version=1)
+        self.assertEqual(completed["results"][0]["version"], 2)
+        deleted = self.operation(self.friend, "todo", self.todo_id, {}, base_version=2, mutation="tombstone")
+        self.assertEqual(deleted["results"][0]["version"], 3)
+        restored = self.operation(self.friend, "todo", self.todo_id, {}, base_version=3, mutation="restore")
+        self.assertEqual(restored["results"][0]["version"], 4)
+        visible = ios_sync.snapshot(p=self.owner)["todos"][0]
+        self.assertTrue(visible["done"])
+        self.assertIsNone(visible["deleted_at"])
+
+    def test_assignment_alone_does_not_grant_todo_delete_and_notes_stay_owner_only(self):
+        self.operation(self.owner, "todo", self.todo_id, {"assigned_to": self.third_id}, base_version=1)
+        with self.assertRaises(HTTPException) as todo_error:
+            self.operation(self.third, "todo", self.todo_id, {}, base_version=2, mutation="tombstone")
+        self.assertEqual(todo_error.exception.status_code, 403)
+
+        self.operation(
+            self.owner,
+            "collection",
+            self.group_id,
+            {"kind_raw": "notes", "shared_with": [self.friend_id]},
+        )
+        with self.assertRaises(HTTPException) as note_error:
+            self.operation(self.friend, "note", self.note_id, {}, base_version=1, mutation="tombstone")
+        self.assertEqual(note_error.exception.status_code, 403)
 
     def test_owner_can_assign_todo_and_clear_assignment(self):
         self.operation(

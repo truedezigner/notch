@@ -46,6 +46,21 @@ def _item_visible(con, user_id: str, row: dict[str, Any], *, is_note: bool) -> b
     return bool(parent and user_id in _loads_list(parent["shared_with"]))
 
 
+def _todo_collaborator_can_soft_delete(con, user_id: str, row: dict[str, Any]) -> bool:
+    """Owners and explicit/inherited todo collaborators may tombstone or restore.
+
+    Assignment by itself grants task editing/completion, but not deletion. Permanent
+    deletion remains outside the iOS sync API and owner-only in the canonical API.
+    """
+    if row.get("created_by") == user_id or user_id in _loads_list(row.get("shared_with")):
+        return True
+    list_id = row.get("list_id")
+    if not list_id:
+        return False
+    parent = con.execute("SELECT shared_with FROM todo_lists WHERE id=?", (str(list_id),)).fetchone()
+    return bool(parent and user_id in _loads_list(parent["shared_with"]))
+
+
 def _validate_uuid(value: Any, field: str) -> str:
     try:
         return str(uuid.UUID(str(value)))
@@ -227,8 +242,11 @@ def _apply_item(con, user_id: str, entity_id: str, mutation: str, body: dict[str
         raise HTTPException(status_code=404, detail="Item not found")
     if base_version is not None and int(base_version) != int(current.get("version") or 0):
         raise HTTPException(status_code=409, detail={"message": "Version conflict", "id": entity_id, "server_version": current.get("version")})
-    if mutation in ("tombstone", "restore") and current.get("created_by") != user_id:
-        raise HTTPException(status_code=403, detail="Only creator can delete or restore")
+    if mutation in ("tombstone", "restore"):
+        if is_note and current.get("created_by") != user_id:
+            raise HTTPException(status_code=403, detail="Only creator can delete or restore")
+        if not is_note and not _todo_collaborator_can_soft_delete(con, user_id, current):
+            raise HTTPException(status_code=403, detail="Only owner or shared-list collaborator can delete or restore")
 
     fields: dict[str, Any] = {}
     if mutation in ("update", "complete"):
